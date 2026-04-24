@@ -56,4 +56,27 @@ class BetRepositoryImpl(
     override suspend fun updateGame(game: GameEntity) {
         dao.updateGame(game)
     }
+
+    override suspend fun getBackupData(): pt.mybets.domain.model.BackupData {
+        return pt.mybets.domain.model.BackupData(
+            bets = dao.getAllBetsRaw(),
+            games = dao.getAllGamesRaw(),
+            modalities = dao.getAllModalitiesRaw(),
+            logs = dao.getAllLogsRaw()
+        )
+    }
+
+    override suspend fun restoreBackupData(backupData: pt.mybets.domain.model.BackupData) {
+        // 1. Limpar a base de dados atual
+        dao.deleteAllGames()
+        dao.deleteAllBets()
+        dao.deleteAllModalities()
+        dao.deleteAllLogs()
+
+        // 2. Inserir os dados do JSON
+        dao.insertModalitiesRaw(backupData.modalities)
+        dao.insertBetsRaw(backupData.bets)
+        dao.insertGames(backupData.games) // Já tinhas esta função no DAO!
+        dao.insertLogsRaw(backupData.logs)
+    }
 }

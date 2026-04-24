@@ -12,6 +12,12 @@ import pt.mybets.domain.model.ResultState
 import pt.mybets.domain.repository.BetRepository
 import java.util.UUID
 
+import android.content.Context
+import android.net.Uri
+import com.google.gson.Gson
+import java.io.InputStreamReader
+import java.io.OutputStreamWriter
+import pt.mybets.domain.model.BackupData
 
 
 
@@ -33,11 +39,17 @@ class BetViewModel(
 
     val uiState: StateFlow<MainUiState> = combine(
         repository.getAllBetsWithGames(),
+        repository.getAllModalities(), // <-- Precisamos de observar as modalidades também
         _isLoading
-    ) { bets, isLoading ->
-        MainUiState(bets = bets, stats = calculateStats(bets), isLoading = false)
+    ) { bets, modalities, isLoading ->
+        MainUiState(
+            bets = bets,
+            stats = calculateStats(bets),
+            // É AQUI A MAGIA! A função agora é chamada sempre que a BD muda:
+            detailedStats = calculateDetailedStats(bets, modalities),
+            isLoading = false
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MainUiState())
-
     val modalities: StateFlow<List<ModalityEntity>> = repository.getAllModalities()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -128,42 +140,40 @@ class BetViewModel(
 
     private fun calculateStats(bets: List<BetWithGames>): BetStatsState {
         var totalProfit = 0.0
-        var totalInvestedRealMoney = 0.0
+        var totalInvested = 0.0
         var freeBetProfit = 0.0
-        var totalFinishedBets = 0
-        var totalWonBets = 0
+        var finishedCount = 0
+        var wonCount = 0
 
-        for (betWithGames in bets) {
-            val bet = betWithGames.bet
-            val games = betWithGames.games
+        bets.forEach { bwg ->
+            val b = bwg.bet
 
-            if (bet.isFinished) {
-                totalFinishedBets++
-                if (bet.globalResult == ResultState.WON) totalWonBets++
+            // CORREÇÃO: Olhar para o resultado e não para a flag isFinished
+            if (b.globalResult != ResultState.PENDING) {
+                finishedCount++
+                if (b.globalResult == ResultState.WON) wonCount++
             }
 
-            if (!bet.isFreeBet) {
-                totalInvestedRealMoney += bet.stake
-                totalProfit -= bet.stake
+            if (!b.isFreeBet) {
+                totalInvested += b.stake
+                totalProfit -= b.stake
             }
 
-            if (bet.globalResult == ResultState.WON) {
-                val totalOdd = games.fold(1.0) { acc, game -> acc * game.odd }
-                val returnAmount = bet.stake * totalOdd
-
-                if (bet.isFreeBet) freeBetProfit += returnAmount
-                totalProfit += returnAmount
+            if (b.globalResult == ResultState.WON) {
+                val odd = bwg.games.fold(1.0) { acc, g -> acc * g.odd }
+                val ret = b.stake * odd
+                if (b.isFreeBet) freeBetProfit += ret
+                totalProfit += ret
             }
         }
-
-        val hitRate = if (totalFinishedBets > 0) (totalWonBets.toDouble() / totalFinishedBets.toDouble()) * 100 else 0.0
-        return BetStatsState(totalProfit, totalInvestedRealMoney, freeBetProfit, hitRate)
+        val rate = if (finishedCount > 0) (wonCount.toDouble() / finishedCount) * 100 else 0.0
+        return BetStatsState(totalProfit, totalInvested, freeBetProfit, rate)
     }
 
     private fun calculateDetailedStats(bets: List<BetWithGames>, modalities: List<ModalityEntity>): DetailedStatsState {
-        val finishedBets = bets.filter { it.bet.isFinished }
+        // CORREÇÃO: Buscar as apostas usando o resultado global
+        val finishedBets = bets.filter { it.bet.globalResult != ResultState.PENDING }
 
-        // 1. Stats por Competição
         val compStats = finishedBets
             .flatMap { it.games }
             .groupBy { it.competition }
@@ -172,17 +182,15 @@ class BetViewModel(
                 CompetitionStat(comp, (wins.toDouble() / games.size) * 100, games.size)
             }.sortedByDescending { it.total }
 
-        // 2. Stats por Modalidade
         val modStats = finishedBets
             .flatMap { it.games }
             .groupBy { it.modalityId }
             .map { (modId, games) ->
-                val modName = modalities.find { it.id == modId }?.name ?: "Unknown"
+                val modName = modalities.find { it.id == modId }?.name ?: "Desconhecida"
                 val wins = games.count { it.result == ResultState.WON }
                 ModalityStat(modName, (wins.toDouble() / games.size) * 100, games.size)
             }.sortedByDescending { it.total }
 
-        // 3. ROI por Faixas de Odds
         val ranges = listOf("1.0-1.5", "1.5-2.0", "2.0-3.0", "3.0+")
         val oddRangeStats = ranges.map { range ->
             val filtered = finishedBets.filter { betWithGames ->
@@ -210,5 +218,39 @@ class BetViewModel(
         }
 
         return DetailedStatsState(compStats, modStats, oddRangeStats)
+    }
+    // --- EXPORTAÇÃO E IMPORTAÇÃO JSON ---
+    fun exportDatabase(context: Context, uri: Uri) {
+        viewModelScope.launch {
+            try {
+                val backup = repository.getBackupData()
+                val jsonString = Gson().toJson(backup)
+
+                context.contentResolver.openOutputStream(uri)?.use { outputStream ->
+                    OutputStreamWriter(outputStream).use { writer ->
+                        writer.write(jsonString)
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun importDatabase(context: Context, uri: Uri) {
+        viewModelScope.launch {
+            try {
+                context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                    InputStreamReader(inputStream).use { reader ->
+                        val backup = Gson().fromJson(reader, BackupData::class.java)
+                        if (backup != null) {
+                            repository.restoreBackupData(backup)
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 }

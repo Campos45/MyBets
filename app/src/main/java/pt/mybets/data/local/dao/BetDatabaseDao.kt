@@ -47,4 +47,38 @@ interface BetDatabaseDao {
 
     @Query("SELECT DISTINCT competition FROM games WHERE competition != ''")
     fun getAllUniqueCompetitions(): Flow<List<String>>
+
+    // --- FUNÇÕES DE BACKUP (JSON) ---
+    @Query("SELECT * FROM bets")
+    suspend fun getAllBetsRaw(): List<BetEntity>
+
+    @Query("SELECT * FROM games")
+    suspend fun getAllGamesRaw(): List<GameEntity>
+
+    @Query("SELECT * FROM modalities")
+    suspend fun getAllModalitiesRaw(): List<ModalityEntity>
+
+    @Query("SELECT * FROM app_logs")
+    suspend fun getAllLogsRaw(): List<AppLogEntity>
+
+    @Query("DELETE FROM bets")
+    suspend fun deleteAllBets()
+
+    @Query("DELETE FROM games")
+    suspend fun deleteAllGames()
+
+    @Query("DELETE FROM modalities")
+    suspend fun deleteAllModalities()
+
+    @Query("DELETE FROM app_logs")
+    suspend fun deleteAllLogs()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertBetsRaw(bets: List<BetEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertModalitiesRaw(modalities: List<ModalityEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertLogsRaw(logs: List<AppLogEntity>)
 }

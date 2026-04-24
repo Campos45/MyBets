@@ -21,4 +21,7 @@ interface BetRepository {
     fun getAllUniqueCompetitions(): Flow<List<String>>
 
     suspend fun updateGame(game: GameEntity)
+
+    suspend fun getBackupData(): pt.mybets.domain.model.BackupData
+    suspend fun restoreBackupData(backupData: pt.mybets.domain.model.BackupData)
 }

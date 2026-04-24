@@ -28,71 +28,85 @@ import pt.mybets.domain.model.ResultState
 import pt.mybets.presentation.viewmodel.BetStatsState
 import pt.mybets.presentation.viewmodel.MainUiState
 
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.MoreVert
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     uiState: MainUiState,
     onNavigateToAddBet: () -> Unit,
-    onUpdateGameResult: (BetWithGames, GameEntity, ResultState) -> Unit
+    onNavigateToStats: () -> Unit,
+    onUpdateGameResult: (BetWithGames, GameEntity, ResultState) -> Unit,
+    onExportBackup: (android.net.Uri) -> Unit = {}, // NOVOS PARÂMETROS
+    onImportBackup: (android.net.Uri) -> Unit = {}  // NOVOS PARÂMETROS
 ) {
+    var menuExpanded by remember { mutableStateOf(false) }
+
+    // Launchers do Sistema para Guardar e Abrir ficheiros
+    val exportLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json")
+    ) { uri -> uri?.let { onExportBackup(it) } }
+
+    val importLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+    ) { uri -> uri?.let { onImportBackup(it) } }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("O Meu Tracker", fontWeight = FontWeight.Bold) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
+                actions = {
+                    IconButton(onClick = onNavigateToStats) { Icon(Icons.Default.List, "Estatísticas") }
+
+                    // CORREÇÃO AQUI: Envolver o Botão e o Menu dentro de uma Box para servir de âncora
+                    Box {
+                        IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Default.MoreVert, "Opções") }
+
+                        DropdownMenu(
+                            expanded = menuExpanded,
+                            onDismissRequest = { menuExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Exportar Backup (JSON)") },
+                                onClick = {
+                                    menuExpanded = false
+                                    exportLauncher.launch("mybets_backup.json")
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Importar Backup (JSON)") },
+                                onClick = {
+                                    menuExpanded = false
+                                    importLauncher.launch(arrayOf("application/json"))
+                                }
+                            )
+                        }
+                    }
+                }
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onNavigateToAddBet) {
-                Icon(Icons.Default.Add, contentDescription = "Nova Aposta")
-            }
+            FloatingActionButton(onClick = onNavigateToAddBet) { Icon(Icons.Default.Add, "Nova Aposta") }
         }
     ) { padding ->
+        // ... (MANTÉM TODO O CONTEÚDO DO LAZY COLUMN QUE TINHAS AQUI)
         if (uiState.isLoading) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
+            Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
         } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // Secção de Estatísticas e Gráfico
+            LazyColumn(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 item {
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(Modifier.height(8.dp))
                     StatsGrid(stats = uiState.stats)
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(Modifier.height(16.dp))
                     ProfitLineChart(bets = uiState.bets)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("Histórico de Apostas", style = MaterialTheme.typography.titleLarge)
+                    Spacer(Modifier.height(16.dp))
+                    Text("Histórico", style = MaterialTheme.typography.titleLarge)
                 }
-
-                // Lista de Apostas
-                if (uiState.bets.isEmpty()) {
-                    item {
-                        Text(
-                            text = "Ainda não registaste nenhuma aposta.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(vertical = 32.dp)
-                        )
-                    }
-                } else {
-                    items(uiState.bets, key = { it.bet.id }) { betWithGames ->
-                        BetCard(
-                            betWithGames = betWithGames,
-                            onUpdateGameResult = { game, result ->
-                                onUpdateGameResult(betWithGames, game, result)
-                            }
-                        )
-                    }
+                items(uiState.bets, key = { it.bet.id }) { bwg ->
+                    BetCard(bwg, onUpdateGameResult = { g, r -> onUpdateGameResult(bwg, g, r) })
                 }
-
-                item { Spacer(modifier = Modifier.height(80.dp)) }
+                item { Spacer(Modifier.height(80.dp)) }
             }
         }
     }
