@@ -4,6 +4,8 @@ plugins {
 
     // Como a versão já está no ficheiro do Projeto, aqui chamamos só o ID
     id("com.google.devtools.ksp")
+
+    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 android {
@@ -41,9 +43,6 @@ android {
     buildFeatures {
         compose = true
     }
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.1"
-    }
 }
 
 dependencies {
@@ -68,6 +67,8 @@ dependencies {
 
     // Navigation Compose
     implementation("androidx.navigation:navigation-compose:2.7.7")
+
+    implementation("com.google.android.material:material:1.11.0")
 
     // Testes
     testImplementation(libs.junit)

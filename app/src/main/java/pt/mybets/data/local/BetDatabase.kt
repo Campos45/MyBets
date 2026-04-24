@@ -1,9 +1,9 @@
-package com.teunome.bettracker.data.local
+package pt.mybets.data.local
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
-import com.teunome.bettracker.data.local.dao.BetDatabaseDao
-import com.teunome.bettracker.data.local.entity.*
+import pt.mybets.data.local.dao.BetDatabaseDao
+import pt.mybets.data.local.entity.*
 
 @Database(
     entities = [BetEntity::class, GameEntity::class, ModalityEntity::class, AppLogEntity::class],

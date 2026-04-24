@@ -1,8 +1,7 @@
-package com.teunome.bettracker.data.local.dao
-
+package pt.mybets.data.local.dao
 import androidx.room.*
-import com.teunome.bettracker.data.local.entity.*
-import com.teunome.bettracker.data.local.relations.BetWithGames
+import pt.mybets.data.local.entity.*
+import pt.mybets.data.local.relations.BetWithGames
 import kotlinx.coroutines.flow.Flow
 
 @Dao

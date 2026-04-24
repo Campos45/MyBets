@@ -1,9 +1,9 @@
-package com.teunome.bettracker.data.local.entity
+package pt.mybets.data.local.entity
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import androidx.room.ForeignKey
-import com.teunome.bettracker.domain.model.ResultState
+import pt.mybets.domain.model.ResultState
 
 @Entity(tableName = "bets")
 data class BetEntity(
