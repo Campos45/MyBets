@@ -81,4 +81,19 @@ interface BetDatabaseDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertLogsRaw(logs: List<AppLogEntity>)
+
+    // ADICIONADO: Transação segura para o Restore
+    @Transaction
+    suspend fun restoreFullBackup(backup: pt.mybets.domain.model.BackupData) {
+        deleteAllGames()
+        deleteAllBets()
+        deleteAllModalities()
+        deleteAllLogs()
+
+        insertModalitiesRaw(backup.modalities)
+        insertBetsRaw(backup.bets)
+        insertGames(backup.games) // Usa a função de inserir jogos que já tinhas
+        insertLogsRaw(backup.logs)
+    }
+
 }

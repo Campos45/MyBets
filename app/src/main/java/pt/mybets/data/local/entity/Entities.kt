@@ -3,6 +3,7 @@ package pt.mybets.data.local.entity
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import androidx.room.ForeignKey
+import androidx.room.Index
 import pt.mybets.domain.model.ResultState
 
 @Entity(tableName = "bets")
@@ -18,18 +19,13 @@ data class BetEntity(
 @Entity(
     tableName = "games",
     foreignKeys = [
-        ForeignKey(
-            entity = BetEntity::class,
-            parentColumns = ["id"],
-            childColumns = ["betId"],
-            onDelete = ForeignKey.CASCADE // Se a aposta for apagada, os jogos também são
-        ),
-        ForeignKey(
-            entity = ModalityEntity::class,
-            parentColumns = ["id"],
-            childColumns = ["modalityId"],
-            onDelete = ForeignKey.RESTRICT // Impede apagar uma modalidade se estiver em uso
-        )
+        ForeignKey(entity = BetEntity::class, parentColumns = ["id"], childColumns = ["betId"], onDelete = ForeignKey.CASCADE),
+        ForeignKey(entity = ModalityEntity::class, parentColumns = ["id"], childColumns = ["modalityId"], onDelete = ForeignKey.CASCADE)
+    ],
+    // ADICIONADO: Índices para evitar Full Table Scans e lentidão
+    indices = [
+        Index(value = ["betId"]),
+        Index(value = ["modalityId"])
     ]
 )
 data class GameEntity(

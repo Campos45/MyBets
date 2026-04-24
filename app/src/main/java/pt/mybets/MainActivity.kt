@@ -13,7 +13,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.room.Room
 import pt.mybets.data.local.BetDatabase
 import pt.mybets.data.repository.BetRepositoryImpl
-import pt.mybets.presentation.AppNavigation
+
+import pt.mybets.presentation.navigation.AppNavigation
 import pt.mybets.presentation.viewmodel.BetViewModel
 
 class MainActivity : ComponentActivity() {

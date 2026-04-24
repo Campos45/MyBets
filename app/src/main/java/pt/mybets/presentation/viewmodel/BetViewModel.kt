@@ -19,6 +19,10 @@ import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import pt.mybets.domain.model.BackupData
 
+import android.widget.Toast
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
 
 
 // Estado para a UI preencher
@@ -39,17 +43,20 @@ class BetViewModel(
 
     val uiState: StateFlow<MainUiState> = combine(
         repository.getAllBetsWithGames(),
-        repository.getAllModalities(), // <-- Precisamos de observar as modalidades também
+        repository.getAllModalities(),
         _isLoading
     ) { bets, modalities, isLoading ->
-        MainUiState(
-            bets = bets,
-            stats = calculateStats(bets),
-            // É AQUI A MAGIA! A função agora é chamada sempre que a BD muda:
-            detailedStats = calculateDetailedStats(bets, modalities),
-            isLoading = false
-        )
+        // CORREÇÃO: Passar o cálculo pesado para uma Thread de fundo (Default)
+        withContext(Dispatchers.Default) {
+            MainUiState(
+                bets = bets,
+                stats = calculateStats(bets),
+                detailedStats = calculateDetailedStats(bets, modalities),
+                isLoading = false
+            )
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MainUiState())
+
     val modalities: StateFlow<List<ModalityEntity>> = repository.getAllModalities()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -69,27 +76,36 @@ class BetViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
 
+    fun markAllGamesAsWon(betWithGames: BetWithGames) {
+        viewModelScope.launch {
+            betWithGames.games.forEach { game ->
+                repository.updateGame(game.copy(result = ResultState.WON))
+            }
+            // Atualiza a aposta global como ganha
+            repository.updateBetStatus(
+                betWithGames.bet.copy(globalResult = ResultState.WON, isFinished = true)
+            )
+        }
+    }
+
     // Função para atualizar o resultado de um jogo específico
     fun updateGameResult(betWithGames: BetWithGames, game: GameEntity, newResult: ResultState) {
         viewModelScope.launch {
-            // 1. Atualiza o jogo específico na Base de Dados
             val updatedGame = game.copy(result = newResult)
             repository.updateGame(updatedGame)
 
-            // 2. Analisa o impacto na Aposta Global
-            // Substituímos o jogo antigo pelo atualizado na nossa lista em memória para validar
             val allGames = betWithGames.games.map { if (it.id == game.id) updatedGame else it }
 
             val hasLost = allGames.any { it.result == ResultState.LOST }
-            val allWon = allGames.all { it.result == ResultState.WON }
+            val hasPending = allGames.any { it.result == ResultState.PENDING }
 
+            // LÓGICA CORRIGIDA PARA O JOGO ADIADO
             val newBetResult = when {
                 hasLost -> ResultState.LOST
-                allWon -> ResultState.WON
+                !hasPending -> ResultState.WON // Se não há perdas nem pendentes (tudo WON ou VOID), a aposta é ganha!
                 else -> ResultState.PENDING
             }
 
-            // Só atualiza a aposta global se o resultado for diferente do atual
             if (betWithGames.bet.globalResult != newBetResult) {
                 val isFinished = newBetResult != ResultState.PENDING
                 repository.updateBetStatus(
@@ -148,7 +164,6 @@ class BetViewModel(
         bets.forEach { bwg ->
             val b = bwg.bet
 
-            // CORREÇÃO: Olhar para o resultado e não para a flag isFinished
             if (b.globalResult != ResultState.PENDING) {
                 finishedCount++
                 if (b.globalResult == ResultState.WON) wonCount++
@@ -160,7 +175,8 @@ class BetViewModel(
             }
 
             if (b.globalResult == ResultState.WON) {
-                val odd = bwg.games.fold(1.0) { acc, g -> acc * g.odd }
+                // CORREÇÃO: Odd passa a 1.0 se o jogo for VOID
+                val odd = bwg.games.fold(1.0) { acc, g -> acc * (if (g.result == ResultState.VOID) 1.0 else g.odd) }
                 val ret = b.stake * odd
                 if (b.isFreeBet) freeBetProfit += ret
                 totalProfit += ret
@@ -171,30 +187,24 @@ class BetViewModel(
     }
 
     private fun calculateDetailedStats(bets: List<BetWithGames>, modalities: List<ModalityEntity>): DetailedStatsState {
-        // CORREÇÃO: Buscar as apostas usando o resultado global
         val finishedBets = bets.filter { it.bet.globalResult != ResultState.PENDING }
 
-        val compStats = finishedBets
-            .flatMap { it.games }
-            .groupBy { it.competition }
-            .map { (comp, games) ->
-                val wins = games.count { it.result == ResultState.WON }
-                CompetitionStat(comp, (wins.toDouble() / games.size) * 100, games.size)
-            }.sortedByDescending { it.total }
+        val compStats = finishedBets.flatMap { it.games }.groupBy { it.competition }.map { (comp, games) ->
+            val wins = games.count { it.result == ResultState.WON }
+            CompetitionStat(comp, (wins.toDouble() / games.size) * 100, games.size)
+        }.sortedByDescending { it.total }
 
-        val modStats = finishedBets
-            .flatMap { it.games }
-            .groupBy { it.modalityId }
-            .map { (modId, games) ->
-                val modName = modalities.find { it.id == modId }?.name ?: "Desconhecida"
-                val wins = games.count { it.result == ResultState.WON }
-                ModalityStat(modName, (wins.toDouble() / games.size) * 100, games.size)
-            }.sortedByDescending { it.total }
+        val modStats = finishedBets.flatMap { it.games }.groupBy { it.modalityId }.map { (modId, games) ->
+            val modName = modalities.find { it.id == modId }?.name ?: "Desconhecida"
+            val wins = games.count { it.result == ResultState.WON }
+            ModalityStat(modName, (wins.toDouble() / games.size) * 100, games.size)
+        }.sortedByDescending { it.total }
 
         val ranges = listOf("1.0-1.5", "1.5-2.0", "2.0-3.0", "3.0+")
         val oddRangeStats = ranges.map { range ->
             val filtered = finishedBets.filter { betWithGames ->
-                val totalOdd = betWithGames.games.fold(1.0) { acc, g -> acc * g.odd }
+                // CORREÇÃO DA ODD AQUI TAMBÉM
+                val totalOdd = betWithGames.games.fold(1.0) { acc, g -> acc * (if (g.result == ResultState.VOID) 1.0 else g.odd) }
                 when (range) {
                     "1.0-1.5" -> totalOdd in 1.0..1.5
                     "1.5-2.0" -> totalOdd > 1.5 && totalOdd <= 2.0
@@ -208,7 +218,8 @@ class BetViewModel(
             filtered.forEach {
                 if (!it.bet.isFreeBet) totalStake += it.bet.stake
                 if (it.bet.globalResult == ResultState.WON) {
-                    val odd = it.games.fold(1.0) { acc, g -> acc * g.odd }
+                    // E CORREÇÃO DA ODD AQUI
+                    val odd = it.games.fold(1.0) { acc, g -> acc * (if (g.result == ResultState.VOID) 1.0 else g.odd) }
                     totalReturn += it.bet.stake * odd
                 }
             }
@@ -225,14 +236,16 @@ class BetViewModel(
             try {
                 val backup = repository.getBackupData()
                 val jsonString = Gson().toJson(backup)
-
                 context.contentResolver.openOutputStream(uri)?.use { outputStream ->
                     OutputStreamWriter(outputStream).use { writer ->
                         writer.write(jsonString)
                     }
                 }
+                // FEEDBACK VISUAL
+                Toast.makeText(context, "Backup exportado com sucesso!", Toast.LENGTH_LONG).show()
             } catch (e: Exception) {
                 e.printStackTrace()
+                Toast.makeText(context, "Erro ao exportar backup.", Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -245,11 +258,14 @@ class BetViewModel(
                         val backup = Gson().fromJson(reader, BackupData::class.java)
                         if (backup != null) {
                             repository.restoreBackupData(backup)
+                            // FEEDBACK VISUAL
+                            Toast.makeText(context, "Backup importado com sucesso!", Toast.LENGTH_LONG).show()
                         }
                     }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
+                Toast.makeText(context, "Ficheiro inválido ou corrompido.", Toast.LENGTH_LONG).show()
             }
         }
     }

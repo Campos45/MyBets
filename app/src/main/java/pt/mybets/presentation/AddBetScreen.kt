@@ -44,14 +44,24 @@ fun AddBetScreen(
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = {
-                    val stakeValue = stake.toDoubleOrNull() ?: 0.0
+                    // CORREÇÃO: Substitui vírgula por ponto para evitar nulls na Europa
+                    val safeStakeStr = stake.replace(",", ".")
+                    val stakeValue = safeStakeStr.toDoubleOrNull() ?: 0.0
+
                     val validGames = games.filter {
+                        val safeOddStr = it.odd.replace(",", ".")
+                        val safeOdd = safeOddStr.toDoubleOrNull()
+
+                        // VALIDAÇÃO: Tem de ter dados e a odd tem de ser realista (> 1.0)
                         it.homeTeam.isNotBlank() && it.awayTeam.isNotBlank() &&
-                                it.odd.toDoubleOrNull() != null && it.modalityName.isNotBlank()
+                                safeOdd != null && safeOdd > 1.0 && it.modalityName.isNotBlank()
                     }
 
-                    if (validGames.isNotEmpty()) {
-                        viewModel.saveBet(stakeValue, isFreeBet, validGames)
+                    // VALIDAÇÃO: Stake > 0 e tem de haver jogos válidos
+                    if (stakeValue > 0.0 && validGames.isNotEmpty()) {
+                        // Garante que a odd guardada vai higienizada (com ponto)
+                        val sanitizedGames = validGames.map { it.copy(odd = it.odd.replace(",", ".")) }
+                        viewModel.saveBet(stakeValue, isFreeBet, sanitizedGames)
                         onNavigateBack()
                     }
                 },

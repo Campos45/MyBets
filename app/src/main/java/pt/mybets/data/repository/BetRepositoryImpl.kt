@@ -67,16 +67,6 @@ class BetRepositoryImpl(
     }
 
     override suspend fun restoreBackupData(backupData: pt.mybets.domain.model.BackupData) {
-        // 1. Limpar a base de dados atual
-        dao.deleteAllGames()
-        dao.deleteAllBets()
-        dao.deleteAllModalities()
-        dao.deleteAllLogs()
-
-        // 2. Inserir os dados do JSON
-        dao.insertModalitiesRaw(backupData.modalities)
-        dao.insertBetsRaw(backupData.bets)
-        dao.insertGames(backupData.games) // Já tinhas esta função no DAO!
-        dao.insertLogsRaw(backupData.logs)
+        dao.restoreFullBackup(backupData) // Substitui as múltiplas chamadas por esta única segura
     }
 }

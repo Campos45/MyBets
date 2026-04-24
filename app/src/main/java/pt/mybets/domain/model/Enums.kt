@@ -1,4 +1,4 @@
 package pt.mybets.domain.model
 enum class ResultState {
-    PENDING, WON, LOST
+    PENDING, WON, LOST, VOID
 }
