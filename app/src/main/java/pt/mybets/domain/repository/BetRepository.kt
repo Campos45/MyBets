@@ -14,5 +14,11 @@ interface BetRepository {
 
     suspend fun insertBetWithGames(bet: BetEntity, games: List<GameEntity>)
     suspend fun updateBetStatus(bet: BetEntity)
-    suspend fun insertModality(modality: ModalityEntity)
+    suspend fun insertModality(modality: ModalityEntity): Long
+
+    fun getAllUniqueTeams(): Flow<List<String>>
+
+    fun getAllUniqueCompetitions(): Flow<List<String>>
+
+    suspend fun updateGame(game: GameEntity)
 }

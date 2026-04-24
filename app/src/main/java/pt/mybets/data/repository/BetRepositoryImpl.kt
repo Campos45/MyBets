@@ -41,8 +41,19 @@ class BetRepositoryImpl(
         dao.insertLog(AppLogEntity(action = "UPDATE_BET_ID_${bet.id}"))
     }
 
-    override suspend fun insertModality(modality: ModalityEntity) {
-        dao.insertModality(modality)
+    override suspend fun insertModality(modality: ModalityEntity): Long {
+        val id = dao.insertModality(modality)
         dao.insertLog(AppLogEntity(action = "INSERT_MODALITY_${modality.name}"))
+        return id
+    }
+
+    override fun getAllUniqueTeams(): Flow<List<String>> {
+        return dao.getAllUniqueTeams()
+    }
+
+    override fun getAllUniqueCompetitions(): Flow<List<String>> = dao.getAllUniqueCompetitions()
+
+    override suspend fun updateGame(game: GameEntity) {
+        dao.updateGame(game)
     }
 }

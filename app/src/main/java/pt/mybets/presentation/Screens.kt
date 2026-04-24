@@ -25,17 +25,3 @@ fun HomeScreen(
     }
 }
 
-@Composable
-fun AddBetScreen(
-    viewModel: BetViewModel,
-    onNavigateBack: () -> Unit
-) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Button(onClick = onNavigateBack) {
-            Text(text = "Voltar para a Home")
-        }
-    }
-}

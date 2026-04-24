@@ -41,4 +41,10 @@ interface BetDatabaseDao {
 
     @Query("SELECT * FROM app_logs ORDER BY timestamp DESC")
     fun getAllLogs(): Flow<List<AppLogEntity>>
+
+    @Query("SELECT DISTINCT teams FROM games")
+    fun getAllUniqueTeams(): Flow<List<String>>
+
+    @Query("SELECT DISTINCT competition FROM games WHERE competition != ''")
+    fun getAllUniqueCompetitions(): Flow<List<String>>
 }

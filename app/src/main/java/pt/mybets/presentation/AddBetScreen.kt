@@ -1,0 +1,243 @@
+package pt.mybets.presentation
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
+import pt.mybets.presentation.viewmodel.BetViewModel
+import pt.mybets.presentation.viewmodel.GameInputState
+
+import androidx.compose.ui.window.PopupProperties
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddBetScreen(
+    viewModel: BetViewModel,
+    onNavigateBack: () -> Unit
+) {
+    var stake by remember { mutableStateOf("") }
+    var isFreeBet by remember { mutableStateOf(false) }
+    var games by remember { mutableStateOf(listOf(GameInputState())) }
+
+    val modalities by viewModel.modalities.collectAsState()
+    val teamSuggestions by viewModel.teamSuggestions.collectAsState()
+    val competitionSuggestions by viewModel.competitionSuggestions.collectAsState()
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Nova Aposta") },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) { Icon(Icons.Default.ArrowBack, "Voltar") }
+                }
+            )
+        },
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = {
+                    val stakeValue = stake.toDoubleOrNull() ?: 0.0
+                    val validGames = games.filter {
+                        it.homeTeam.isNotBlank() && it.awayTeam.isNotBlank() &&
+                                it.odd.toDoubleOrNull() != null && it.modalityName.isNotBlank()
+                    }
+
+                    if (validGames.isNotEmpty()) {
+                        viewModel.saveBet(stakeValue, isFreeBet, validGames)
+                        onNavigateBack()
+                    }
+                },
+                icon = { Icon(Icons.Default.Add, "Guardar") },
+                text = { Text("Guardar Aposta") }
+            )
+        }
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item {
+                OutlinedTextField(
+                    value = stake,
+                    onValueChange = { stake = it },
+                    label = { Text("Stake (Valor)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Aposta grátis (Free Bet)?", style = MaterialTheme.typography.bodyLarge)
+                    Switch(checked = isFreeBet, onCheckedChange = { isFreeBet = it })
+                }
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            }
+
+            itemsIndexed(games, key = { _, game -> game.id }) { index, game ->
+                GameInputCard(
+                    game = game,
+                    modalities = modalities.map { it.name },
+                    teamSuggestions = teamSuggestions,
+                    competitionSuggestions = competitionSuggestions,
+                    onGameChange = { updatedGame ->
+                        val newList = games.toMutableList()
+                        newList[index] = updatedGame
+                        games = newList
+                    },
+                    onDelete = {
+                        if (games.size > 1) {
+                            val newList = games.toMutableList()
+                            newList.removeAt(index)
+                            games = newList
+                        }
+                    }
+                )
+            }
+
+            item {
+                OutlinedButton(
+                    onClick = { games = games + GameInputState() },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Add, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Adicionar Jogo")
+                }
+                Spacer(Modifier.height(80.dp)) // Espaço para não ficar por baixo do botão flutuante
+            }
+        }
+    }
+}
+
+@Composable
+fun GameInputCard(
+    game: GameInputState,
+    modalities: List<String>,
+    teamSuggestions: List<String>,
+    competitionSuggestions: List<String>,
+    onGameChange: (GameInputState) -> Unit,
+    onDelete: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Detalhes do Jogo", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Default.Delete, "Remover", tint = MaterialTheme.colorScheme.error)
+                }
+            }
+
+            // EQUIPA DA CASA (Linha inteira)
+            AutocompleteTextField(
+                value = game.homeTeam,
+                onValueChange = { onGameChange(game.copy(homeTeam = it)) },
+                label = "Equipa da Casa (ex: Benfica)",
+                suggestions = teamSuggestions,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // EQUIPA VISITANTE (Linha inteira, debaixo da casa)
+            AutocompleteTextField(
+                value = game.awayTeam,
+                onValueChange = { onGameChange(game.copy(awayTeam = it)) },
+                label = "Equipa Visitante (ex: Porto)",
+                suggestions = teamSuggestions,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // COMPETIÇÃO (Linha inteira)
+            AutocompleteTextField(
+                value = game.competition,
+                onValueChange = { onGameChange(game.copy(competition = it)) },
+                label = "Competição (ex: Primeira Liga)",
+                suggestions = competitionSuggestions,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // MODALIDADE (Linha inteira)
+            AutocompleteTextField(
+                value = game.modalityName,
+                onValueChange = { onGameChange(game.copy(modalityName = it)) },
+                label = "Modalidade (ex: Over 2.5)",
+                suggestions = modalities,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // ODD (Linha inteira)
+            OutlinedTextField(
+                value = game.odd,
+                onValueChange = { onGameChange(game.copy(odd = it)) },
+                label = { Text("Odd do Jogo (ex: 1.85)") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+
+
+// COMPONENTE GENÉRICO DE AUTOCOMPLETE (À prova de bala, sem roubo de foco)
+@Composable
+fun AutocompleteTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    suggestions: List<String>,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    val filteredSuggestions = suggestions.filter {
+        it.contains(value, ignoreCase = true) && it.lowercase() != value.lowercase()
+    }
+
+    Box(modifier = modifier) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = {
+                onValueChange(it)
+                expanded = true
+            },
+            label = { Text(label) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+
+        // Usamos um DropdownMenu clássico e seguro
+        DropdownMenu(
+            expanded = expanded && filteredSuggestions.isNotEmpty(),
+            onDismissRequest = { expanded = false },
+            // A MAGIA ESTÁ AQUI: Impede que a lista roube o foco do teclado!
+            properties = PopupProperties(focusable = false)
+        ) {
+            filteredSuggestions.forEach { suggestion ->
+                DropdownMenuItem(
+                    text = { Text(suggestion) },
+                    onClick = {
+                        onValueChange(suggestion)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
