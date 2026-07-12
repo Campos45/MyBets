@@ -445,7 +445,7 @@ fun FilterSelector(
             DropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { onExpandedChange(false) },
-                modifier = Modifier.fillMaxWidth(0.9f)
+                modifier = Modifier.fillMaxWidth(0.9f).heightIn(max = 200.dp)
             ) {
                 options.distinct().forEach { option ->
                     DropdownMenuItem(

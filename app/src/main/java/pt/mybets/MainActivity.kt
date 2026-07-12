@@ -18,6 +18,7 @@ import pt.mybets.data.repository.BetRepositoryImpl
 
 import pt.mybets.presentation.navigation.AppNavigation
 import pt.mybets.presentation.viewmodel.BetViewModel
+import pt.mybets.presentation.theme.MyBetsTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -50,8 +51,8 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            // MaterialTheme base (podes personalizar as cores mais tarde)
-            MaterialTheme {
+            // Aplicar o tema escuro/verde neon (Betano Green Style)
+            MyBetsTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background

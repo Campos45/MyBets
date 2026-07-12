@@ -1,5 +1,6 @@
 package pt.mybets.presentation
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -115,34 +116,43 @@ fun StatsScreen(
                             }
                         } else {
                             items(insights) { insight ->
-                                val cardColor = when (insight.type) {
-                                    InsightType.POSITIVE -> Color(0xFFE8F5E9)
-                                    InsightType.WARNING -> Color(0xFFFFEBEE)
-                                    InsightType.INFO -> Color(0xFFE3F2FD)
-                                }
-                                val textColor = when (insight.type) {
-                                    InsightType.POSITIVE -> Color(0xFF2E7D32)
-                                    InsightType.WARNING -> Color(0xFFC62828)
-                                    InsightType.INFO -> Color(0xFF1565C0)
+                                val accentColor = when (insight.type) {
+                                    InsightType.POSITIVE -> Color(0xFF00E676)
+                                    InsightType.WARNING -> Color(0xFFD32F2F)
+                                    InsightType.INFO -> Color(0xFF2196F3)
                                 }
 
                                 Card(
                                     modifier = Modifier.fillMaxWidth(),
-                                    colors = CardDefaults.cardColors(containerColor = cardColor)
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
+                                    border = androidx.compose.foundation.BorderStroke(1.2.dp, accentColor.copy(alpha = 0.5f))
                                 ) {
-                                    Column(Modifier.padding(16.dp)) {
-                                        Text(
-                                            text = insight.title,
-                                            fontWeight = FontWeight.Bold,
-                                            color = textColor,
-                                            style = MaterialTheme.typography.titleMedium
+                                    Row(
+                                        modifier = Modifier.padding(16.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .width(4.dp)
+                                                .height(44.dp)
+                                                .background(accentColor, shape = androidx.compose.foundation.shape.RoundedCornerShape(2.dp))
                                         )
-                                        Spacer(Modifier.height(4.dp))
-                                        Text(
-                                            text = insight.description,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = Color.DarkGray
-                                        )
+                                        Spacer(modifier = Modifier.width(16.dp))
+                                        Column {
+                                            Text(
+                                                text = insight.title,
+                                                fontWeight = FontWeight.Bold,
+                                                color = accentColor,
+                                                style = MaterialTheme.typography.titleMedium
+                                            )
+                                            Spacer(Modifier.height(4.dp))
+                                            Text(
+                                                text = insight.description,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = Color.LightGray
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -156,25 +166,34 @@ fun StatsScreen(
 
 @Composable
 fun StatRow(name: String, rate: Double, total: Int) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF37474F))
     ) {
-        Column(Modifier.weight(1f).padding(end = 16.dp)) {
-            Text(name, fontWeight = FontWeight.Medium)
-            Spacer(modifier = Modifier.height(4.dp))
-            LinearProgressIndicator(
-                progress = { (rate / 100).toFloat().coerceIn(0f, 1f) },
-                modifier = Modifier.fillMaxWidth().height(8.dp),
-                color = if (rate >= 50) Color(0xFF4CAF50) else Color(0xFFFFA000),
-                strokeCap = androidx.compose.ui.graphics.StrokeCap.Round,
-                trackColor = MaterialTheme.colorScheme.surfaceVariant
-            )
-        }
-        Column(horizontalAlignment = Alignment.End) {
-            Text("${String.format("%.1f", rate)}%", fontWeight = FontWeight.Bold)
-            Text("$total apostas", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+        Row(
+            modifier = Modifier.padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f).padding(end = 16.dp)) {
+                Text(name, fontWeight = FontWeight.Bold, color = Color.White)
+                Spacer(modifier = Modifier.height(8.dp))
+                LinearProgressIndicator(
+                    progress = { (rate / 100).toFloat().coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth().height(6.dp),
+                    color = if (rate >= 50) Color(0xFF00E676) else Color(0xFFFFA000),
+                    strokeCap = androidx.compose.ui.graphics.StrokeCap.Round,
+                    trackColor = Color(0xFF37474F)
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text("${String.format("%.1f", rate)}%", fontWeight = FontWeight.Black, color = if (rate >= 50) Color(0xFF00E676) else Color(0xFFFFA000))
+                Text("$total apostas", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+            }
         }
     }
 }

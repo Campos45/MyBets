@@ -219,7 +219,7 @@ fun GameInputCard(
             AutocompleteTextField(
                 value = game.homeTeam,
                 onValueChange = { onGameChange(game.copy(homeTeam = it)) },
-                label = "Equipa da Casa (ex: Benfica)",
+                label = "Equipa da Casa (ex: Sporting)",
                 suggestions = teamSuggestions,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -228,7 +228,7 @@ fun GameInputCard(
             AutocompleteTextField(
                 value = game.awayTeam,
                 onValueChange = { onGameChange(game.copy(awayTeam = it)) },
-                label = "Equipa Visitante (ex: Porto)",
+                label = "Equipa Visitante (ex: Portugal)",
                 suggestions = teamSuggestions,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -306,12 +306,13 @@ fun AutocompleteTextField(
             singleLine = true
         )
 
-        // Usamos um DropdownMenu clássico e seguro
+        // Usamos um DropdownMenu clássico e seguro com altura limitada e scroll vertical
         DropdownMenu(
             expanded = expanded && filteredSuggestions.isNotEmpty(),
             onDismissRequest = { expanded = false },
             // A MAGIA ESTÁ AQUI: Impede que a lista roube o foco do teclado!
-            properties = PopupProperties(focusable = false)
+            properties = PopupProperties(focusable = false),
+            modifier = Modifier.heightIn(max = 200.dp)
         ) {
             filteredSuggestions.forEach { suggestion ->
                 DropdownMenuItem(

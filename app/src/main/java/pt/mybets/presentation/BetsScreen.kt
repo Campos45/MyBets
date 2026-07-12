@@ -159,10 +159,12 @@ fun BetCard(
     val formattedDate = dateFormatter.format(Date(bwg.bet.dateTimestamp))
 
     Card(
-        Modifier.fillMaxWidth(),
-        border = CardDefaults.outlinedCardBorder().copy(brush = SolidColor(color))
+        modifier = Modifier.fillMaxWidth(),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
+        border = androidx.compose.foundation.BorderStroke(1.2.dp, color.copy(alpha = 0.5f))
     ) {
-        Column(Modifier.padding(12.dp)) {
+        Column(Modifier.padding(16.dp)) {
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                 Column {
                     Text(if (bwg.bet.isFreeBet) "Free Bet" else "Dinheiro Real", fontWeight = FontWeight.Bold)

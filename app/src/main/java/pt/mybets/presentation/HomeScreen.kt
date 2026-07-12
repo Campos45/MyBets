@@ -3,6 +3,7 @@ package pt.mybets.presentation
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -105,44 +106,82 @@ fun HomeScreen(
 
 @Composable
 fun StatsGrid(stats: BetStatsState) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             StatCard(
                 title = "Lucro Total",
                 value = "${String.format(Locale.getDefault(), "%.2f", stats.totalProfit)} €",
                 modifier = Modifier.weight(1f),
-                color = if (stats.totalProfit >= 0) Color(0xFF2E7D32) else Color(0xFFC62828)
+                indicatorColor = if (stats.totalProfit >= 0) Color(0xFF00E676) else Color(0xFFD32F2F),
+                textColor = if (stats.totalProfit >= 0) Color(0xFF00E676) else Color(0xFFD32F2F)
             )
             StatCard(
                 title = "Win Rate",
                 value = "${String.format(Locale.getDefault(), "%.1f", stats.hitRatePercentage)} %",
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                indicatorColor = Color(0xFF00E676)
             )
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             StatCard(
                 title = "Investido Real",
                 value = "${String.format(Locale.getDefault(), "%.2f", stats.totalInvested)} €",
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                indicatorColor = Color.Gray
             )
             StatCard(
                 title = "Lucro FreeBets",
                 value = "${String.format(Locale.getDefault(), "%.2f", stats.freeBetProfit)} €",
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                indicatorColor = Color(0xFF2196F3)
             )
         }
     }
 }
 
 @Composable
-fun StatCard(title: String, value: String, modifier: Modifier = Modifier, color: Color = MaterialTheme.colorScheme.onSurface) {
+fun StatCard(
+    title: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    indicatorColor: Color = MaterialTheme.colorScheme.primary,
+    textColor: Color = Color.White
+) {
     Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        modifier = modifier.fillMaxWidth(),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF37474F))
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(text = title, style = MaterialTheme.typography.labelMedium)
-            Text(text = value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = color)
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .height(36.dp)
+                    .background(
+                        color = indicatorColor,
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(2.dp)
+                    )
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color.Gray,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Black,
+                    color = textColor
+                )
+            }
         }
     }
 }
@@ -179,12 +218,14 @@ fun ProfitLineChart(bets: List<BetWithGames>) {
 
     if (chartData.history.size > 1) {
         Card(
-            modifier = Modifier.fillMaxWidth().height(200.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            modifier = Modifier.fillMaxWidth().height(220.dp),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF37474F))
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("Evolução da Banca", style = MaterialTheme.typography.labelLarge)
-                Spacer(modifier = Modifier.height(8.dp))
+                Text("Evolução da Banca", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
+                Spacer(modifier = Modifier.height(12.dp))
 
                 val lineColor = MaterialTheme.colorScheme.primary
 
@@ -193,8 +234,8 @@ fun ProfitLineChart(bets: List<BetWithGames>) {
                     val heightRatio = size.height / chartData.range
 
                     val path = Path()
-                    val previousPoint = Offset(0f, size.height - ((chartData.history[0] - chartData.minValue) * heightRatio).toFloat())
-                    path.moveTo(previousPoint.x, previousPoint.y)
+                    val startY = size.height - ((chartData.history[0] - chartData.minValue) * heightRatio).toFloat()
+                    path.moveTo(0f, startY)
 
                     for (i in 1 until chartData.history.size) {
                         val x = i * widthPerPoint
@@ -202,16 +243,35 @@ fun ProfitLineChart(bets: List<BetWithGames>) {
                         path.lineTo(x, y)
                     }
 
+                    // 1. Desenhar o preenchimento translúcido com gradiente vertical
+                    val fillPath = Path().apply {
+                        addPath(path)
+                        lineTo(size.width, size.height)
+                        lineTo(0f, size.height)
+                        close()
+                    }
+                    drawPath(
+                        path = fillPath,
+                        brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                            colors = listOf(
+                                lineColor.copy(alpha = 0.25f),
+                                Color.Transparent
+                            )
+                        )
+                    )
+
+                    // 2. Desenhar a linha de contorno principal
                     drawPath(
                         path = path,
                         color = lineColor,
-                        style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
+                        style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
                     )
 
+                    // 3. Linha de referência no zero
                     if (chartData.maxValue > 0 && chartData.minValue < 0) {
                         val zeroY = size.height - ((0.0 - chartData.minValue) * heightRatio).toFloat()
                         drawLine(
-                            color = Color.Gray.copy(alpha = 0.5f),
+                            color = Color.Gray.copy(alpha = 0.3f),
                             start = Offset(0f, zeroY),
                             end = Offset(size.width, zeroY),
                             strokeWidth = 1.dp.toPx()
