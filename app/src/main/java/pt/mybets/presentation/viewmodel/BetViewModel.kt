@@ -188,23 +188,33 @@ class BetViewModel(
 
     private fun calculateDetailedStats(bets: List<BetWithGames>, modalities: List<ModalityEntity>): DetailedStatsState {
         val finishedBets = bets.filter { it.bet.globalResult != ResultState.PENDING }
+        if (finishedBets.isEmpty()) return DetailedStatsState()
 
-        val compStats = finishedBets.flatMap { it.games }.groupBy { it.competition }.map { (comp, games) ->
+        val allFinishedGames = finishedBets.flatMap { it.games }
+
+        val compStats = allFinishedGames.groupBy { it.competition }.map { (comp, games) ->
             val wins = games.count { it.result == ResultState.WON }
             CompetitionStat(comp, (wins.toDouble() / games.size) * 100, games.size)
         }.sortedByDescending { it.total }
 
-        val modStats = finishedBets.flatMap { it.games }.groupBy { it.modalityId }.map { (modId, games) ->
-            val modName = modalities.find { it.id == modId }?.name ?: "Desconhecida"
+        val modalityMap = modalities.associate { it.id to it.name }
+        val modStats = allFinishedGames.groupBy { it.modalityId }.map { (modId, games) ->
+            val modName = modalityMap[modId] ?: "Desconhecida"
             val wins = games.count { it.result == ResultState.WON }
             ModalityStat(modName, (wins.toDouble() / games.size) * 100, games.size)
         }.sortedByDescending { it.total }
 
+        // Pré-calcular a odd acumulada e stake de cada aposta finalizada para evitar folds redundantes
+        val finishedBetsWithOdds = finishedBets.map { bwg ->
+            val totalOdd = bwg.games.fold(1.0) { acc, g ->
+                acc * (if (g.result == ResultState.VOID) 1.0 else g.odd)
+            }
+            Triple(bwg, totalOdd, bwg.bet.stake)
+        }
+
         val ranges = listOf("1.0-1.5", "1.5-2.0", "2.0-3.0", "3.0+")
         val oddRangeStats = ranges.map { range ->
-            val filtered = finishedBets.filter { betWithGames ->
-                // CORREÇÃO DA ODD AQUI TAMBÉM
-                val totalOdd = betWithGames.games.fold(1.0) { acc, g -> acc * (if (g.result == ResultState.VOID) 1.0 else g.odd) }
+            val filtered = finishedBetsWithOdds.filter { (_, totalOdd, _) ->
                 when (range) {
                     "1.0-1.5" -> totalOdd in 1.0..1.5
                     "1.5-2.0" -> totalOdd > 1.5 && totalOdd <= 2.0
@@ -215,12 +225,10 @@ class BetViewModel(
 
             var totalStake = 0.0
             var totalReturn = 0.0
-            filtered.forEach {
-                if (!it.bet.isFreeBet) totalStake += it.bet.stake
-                if (it.bet.globalResult == ResultState.WON) {
-                    // E CORREÇÃO DA ODD AQUI
-                    val odd = it.games.fold(1.0) { acc, g -> acc * (if (g.result == ResultState.VOID) 1.0 else g.odd) }
-                    totalReturn += it.bet.stake * odd
+            filtered.forEach { (bwg, totalOdd, stake) ->
+                if (!bwg.bet.isFreeBet) totalStake += stake
+                if (bwg.bet.globalResult == ResultState.WON) {
+                    totalReturn += stake * totalOdd
                 }
             }
 
@@ -230,21 +238,28 @@ class BetViewModel(
 
         return DetailedStatsState(compStats, modStats, oddRangeStats)
     }
+
     // --- EXPORTAÇÃO E IMPORTAÇÃO JSON ---
     fun exportDatabase(context: Context, uri: Uri) {
         viewModelScope.launch {
-            try {
-                val backup = repository.getBackupData()
-                val jsonString = Gson().toJson(backup)
-                context.contentResolver.openOutputStream(uri)?.use { outputStream ->
-                    OutputStreamWriter(outputStream).use { writer ->
-                        writer.write(jsonString)
+            val success = withContext(Dispatchers.IO) {
+                try {
+                    val backup = repository.getBackupData()
+                    val jsonString = Gson().toJson(backup)
+                    context.contentResolver.openOutputStream(uri)?.use { outputStream ->
+                        OutputStreamWriter(outputStream).use { writer ->
+                            writer.write(jsonString)
+                        }
                     }
+                    true
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    false
                 }
-                // FEEDBACK VISUAL
+            }
+            if (success) {
                 Toast.makeText(context, "Backup exportado com sucesso!", Toast.LENGTH_LONG).show()
-            } catch (e: Exception) {
-                e.printStackTrace()
+            } else {
                 Toast.makeText(context, "Erro ao exportar backup.", Toast.LENGTH_LONG).show()
             }
         }
@@ -252,19 +267,27 @@ class BetViewModel(
 
     fun importDatabase(context: Context, uri: Uri) {
         viewModelScope.launch {
-            try {
-                context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                    InputStreamReader(inputStream).use { reader ->
-                        val backup = Gson().fromJson(reader, BackupData::class.java)
-                        if (backup != null) {
-                            repository.restoreBackupData(backup)
-                            // FEEDBACK VISUAL
-                            Toast.makeText(context, "Backup importado com sucesso!", Toast.LENGTH_LONG).show()
+            val success = withContext(Dispatchers.IO) {
+                try {
+                    context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                        InputStreamReader(inputStream).use { reader ->
+                            val backup = Gson().fromJson(reader, BackupData::class.java)
+                            if (backup != null) {
+                                repository.restoreBackupData(backup)
+                                true
+                            } else {
+                                false
+                            }
                         }
-                    }
+                    } ?: false
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    false
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
+            }
+            if (success) {
+                Toast.makeText(context, "Backup importado com sucesso!", Toast.LENGTH_LONG).show()
+            } else {
                 Toast.makeText(context, "Ficheiro inválido ou corrompido.", Toast.LENGTH_LONG).show()
             }
         }

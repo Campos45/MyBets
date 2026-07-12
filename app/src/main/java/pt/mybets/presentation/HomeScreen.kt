@@ -107,8 +107,8 @@ fun HomeScreen(
                 items(uiState.bets, key = { it.bet.id }) { bwg ->
                     BetCard(
                         bwg = bwg,
-                        onUpdateGameResult = { g, r -> onUpdateGameResult(bwg, g, r) },
-                        onMarkAllWon = { onMarkAllWon(bwg) }
+                        onUpdateGameResult = onUpdateGameResult,
+                        onMarkAllWon = onMarkAllWon
                     )
                 }
                 item { Spacer(Modifier.height(80.dp)) }
@@ -161,9 +161,16 @@ fun StatCard(title: String, value: String, modifier: Modifier = Modifier, color:
     }
 }
 
+private data class ChartData(
+    val history: List<Double>,
+    val maxValue: Double,
+    val minValue: Double,
+    val range: Double
+)
+
 @Composable
 fun ProfitLineChart(bets: List<BetWithGames>) {
-    val profitHistory = remember(bets) {
+    val chartData = remember(bets) {
         var currentProfit = 0.0
         val history = mutableListOf(0.0)
 
@@ -178,10 +185,13 @@ fun ProfitLineChart(bets: List<BetWithGames>) {
             }
             history.add(currentProfit)
         }
-        history
+        val maxValue = history.maxOrNull() ?: 1.0
+        val minValue = history.minOrNull() ?: -1.0
+        val range = (maxValue - minValue).takeIf { it > 0 } ?: 1.0
+        ChartData(history, maxValue, minValue, range)
     }
 
-    if (profitHistory.size > 1) {
+    if (chartData.history.size > 1) {
         Card(
             modifier = Modifier.fillMaxWidth().height(200.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -193,20 +203,16 @@ fun ProfitLineChart(bets: List<BetWithGames>) {
                 val lineColor = MaterialTheme.colorScheme.primary
 
                 Canvas(modifier = Modifier.fillMaxSize().padding(top = 8.dp, bottom = 8.dp)) {
-                    val maxValue = profitHistory.maxOrNull() ?: 1.0
-                    val minValue = profitHistory.minOrNull() ?: -1.0
-                    val range = (maxValue - minValue).takeIf { it > 0 } ?: 1.0
-
-                    val widthPerPoint = size.width / (profitHistory.size - 1)
-                    val heightRatio = size.height / range
+                    val widthPerPoint = size.width / (chartData.history.size - 1)
+                    val heightRatio = size.height / chartData.range
 
                     val path = Path()
-                    val previousPoint = Offset(0f, size.height - ((profitHistory[0] - minValue) * heightRatio).toFloat())
+                    val previousPoint = Offset(0f, size.height - ((chartData.history[0] - chartData.minValue) * heightRatio).toFloat())
                     path.moveTo(previousPoint.x, previousPoint.y)
 
-                    for (i in 1 until profitHistory.size) {
+                    for (i in 1 until chartData.history.size) {
                         val x = i * widthPerPoint
-                        val y = size.height - ((profitHistory[i] - minValue) * heightRatio).toFloat()
+                        val y = size.height - ((chartData.history[i] - chartData.minValue) * heightRatio).toFloat()
                         path.lineTo(x, y)
                     }
 
@@ -216,8 +222,8 @@ fun ProfitLineChart(bets: List<BetWithGames>) {
                         style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
                     )
 
-                    if (maxValue > 0 && minValue < 0) {
-                        val zeroY = size.height - ((0.0 - minValue) * heightRatio).toFloat()
+                    if (chartData.maxValue > 0 && chartData.minValue < 0) {
+                        val zeroY = size.height - ((0.0 - chartData.minValue) * heightRatio).toFloat()
                         drawLine(
                             color = Color.Gray.copy(alpha = 0.5f),
                             start = Offset(0f, zeroY),
@@ -234,8 +240,8 @@ fun ProfitLineChart(bets: List<BetWithGames>) {
 @Composable
 fun BetCard(
     bwg: BetWithGames,
-    onUpdateGameResult: (GameEntity, ResultState) -> Unit,
-    onMarkAllWon: () -> Unit
+    onUpdateGameResult: (BetWithGames, GameEntity, ResultState) -> Unit,
+    onMarkAllWon: (BetWithGames) -> Unit
 ) {
     val totalOdd = bwg.games.fold(1.0) { acc, g ->
         acc * (if (g.result == ResultState.VOID) 1.0 else g.odd)
@@ -261,8 +267,7 @@ fun BetCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Odd: ${String.format(Locale.getDefault(), "%.2f", totalOdd)}", Modifier.padding(end = 8.dp))
 
-                    // USAR O BOTÃO DE CHECK NORMAL PARA O "TUDO GANHO"
-                    IconButton(onClick = onMarkAllWon) {
+                    IconButton(onClick = { onMarkAllWon(bwg) }) {
                         Icon(Icons.Default.CheckCircle, "Tudo Ganho", tint = MaterialTheme.colorScheme.primary)
                     }
                 }
@@ -282,24 +287,21 @@ fun BetCard(
                     }
 
                     Row {
-                        // BOTÃO GANHO (Visto)
-                        IconButton(onClick = { onUpdateGameResult(g, ResultState.WON) }) {
+                        IconButton(onClick = { onUpdateGameResult(bwg, g, ResultState.WON) }) {
                             Icon(
                                 imageVector = Icons.Default.CheckCircle,
                                 contentDescription = "Ganho",
                                 tint = if (g.result == ResultState.WON) Color.Green else Color.Gray.copy(alpha = 0.5f)
                             )
                         }
-                        // BOTÃO PERDIDO (Cruz)
-                        IconButton(onClick = { onUpdateGameResult(g, ResultState.LOST) }) {
+                        IconButton(onClick = { onUpdateGameResult(bwg, g, ResultState.LOST) }) {
                             Icon(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = "Perdido",
                                 tint = if (g.result == ResultState.LOST) Color.Red else Color.Gray.copy(alpha = 0.5f)
                             )
                         }
-                        // BOTÃO ADIADO (=)
-                        IconButton(onClick = { onUpdateGameResult(g, ResultState.VOID) }) {
+                        IconButton(onClick = { onUpdateGameResult(bwg, g, ResultState.VOID) }) {
                             Text(
                                 text = "=",
                                 fontWeight = FontWeight.ExtraBold,

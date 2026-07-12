@@ -32,6 +32,8 @@ fun AddBetScreen(
     val teamSuggestions by viewModel.teamSuggestions.collectAsState()
     val competitionSuggestions by viewModel.competitionSuggestions.collectAsState()
 
+    val modalityNames = remember(modalities) { modalities.map { it.name } }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -97,7 +99,7 @@ fun AddBetScreen(
             itemsIndexed(games, key = { _, game -> game.id }) { index, game ->
                 GameInputCard(
                     game = game,
-                    modalities = modalities.map { it.name },
+                    modalities = modalityNames,
                     teamSuggestions = teamSuggestions,
                     competitionSuggestions = competitionSuggestions,
                     onGameChange = { updatedGame ->
@@ -216,8 +218,10 @@ fun AutocompleteTextField(
 ) {
     var expanded by remember { mutableStateOf(false) }
 
-    val filteredSuggestions = suggestions.filter {
-        it.contains(value, ignoreCase = true) && it.lowercase() != value.lowercase()
+    val filteredSuggestions = remember(value, suggestions) {
+        suggestions.filter {
+            it.contains(value, ignoreCase = true) && !it.equals(value, ignoreCase = true)
+        }
     }
 
     Box(modifier = modifier) {

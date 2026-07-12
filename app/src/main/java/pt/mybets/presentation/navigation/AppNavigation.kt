@@ -31,13 +31,8 @@ fun AppNavigation(viewModel: BetViewModel) {
                 uiState = uiState,
                 onNavigateToAddBet = { navController.navigate(Routes.ADD_BET) },
                 onNavigateToStats = { navController.navigate(Routes.STATS) },
-                onUpdateGameResult = { betWithGames, game, result ->
-                    viewModel.updateGameResult(betWithGames, game, result)
-                },
-                // A NOVA FUNÇÃO QUE ESTAVA A FALTAR!
-                onMarkAllWon = { betWithGames ->
-                    viewModel.markAllGamesAsWon(betWithGames)
-                },
+                onUpdateGameResult = viewModel::updateGameResult,
+                onMarkAllWon = viewModel::markAllGamesAsWon,
                 onExportBackup = { uri -> viewModel.exportDatabase(context, uri) },
                 onImportBackup = { uri -> viewModel.importDatabase(context, uri) }
             )

@@ -96,4 +96,11 @@ interface BetDatabaseDao {
         insertLogsRaw(backup.logs)
     }
 
+    @Transaction
+    suspend fun insertBetWithGames(bet: BetEntity, games: List<GameEntity>) {
+        val betId = insertBet(bet).toInt()
+        val gamesWithBetId = games.map { it.copy(betId = betId) }
+        insertGames(gamesWithBetId)
+        insertLog(AppLogEntity(action = "INSERT_BET_WITH_${games.size}_GAMES"))
+    }
 }

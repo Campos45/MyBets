@@ -25,15 +25,8 @@ class BetRepositoryImpl(
         return dao.getAllLogs()
     }
 
-    // Usamos uma transação manual aqui para garantir que Aposta e Jogos são inseridos juntos
     override suspend fun insertBetWithGames(bet: BetEntity, games: List<GameEntity>) {
-        val betId = dao.insertBet(bet).toInt()
-
-        // Atribui o ID da aposta gerado a cada jogo antes de inserir
-        val gamesWithBetId = games.map { it.copy(betId = betId) }
-        dao.insertGames(gamesWithBetId)
-
-        dao.insertLog(AppLogEntity(action = "INSERT_BET_WITH_${games.size}_GAMES"))
+        dao.insertBetWithGames(bet, games)
     }
 
     override suspend fun updateBetStatus(bet: BetEntity) {
