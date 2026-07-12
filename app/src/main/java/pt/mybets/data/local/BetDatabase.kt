@@ -7,7 +7,7 @@ import pt.mybets.data.local.entity.*
 
 @Database(
     entities = [BetEntity::class, GameEntity::class, ModalityEntity::class, AppLogEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class BetDatabase : RoomDatabase() {

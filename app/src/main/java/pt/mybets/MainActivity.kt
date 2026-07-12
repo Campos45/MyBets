@@ -11,6 +11,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.room.Room
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import pt.mybets.data.local.BetDatabase
 import pt.mybets.data.repository.BetRepositoryImpl
 
@@ -21,12 +23,20 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE games ADD COLUMN isLive INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         // 1. Instanciar a Base de Dados
         val database = Room.databaseBuilder(
             applicationContext,
             BetDatabase::class.java,
             "mybets_db"
-        ).build()
+        )
+        .addMigrations(MIGRATION_1_2)
+        .build()
 
         // 2. Instanciar o Repositório
         val repository = BetRepositoryImpl(database.dao)

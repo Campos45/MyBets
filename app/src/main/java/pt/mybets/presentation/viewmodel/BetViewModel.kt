@@ -32,7 +32,8 @@ data class GameInputState(
     val awayTeam: String = "",
     val competition: String = "",
     val modalityName: String = "", // Agora é texto livre!
-    val odd: String = ""
+    val odd: String = "",
+    val isLive: Boolean = false
 )
 
 class BetViewModel(
@@ -153,7 +154,8 @@ class BetViewModel(
                     teams = "${input.homeTeam.trim()} vs ${input.awayTeam.trim()}",
                     competition = input.competition.trim(),
                     modalityId = modalityId,
-                    odd = input.odd.toDoubleOrNull() ?: 1.0
+                    odd = input.odd.toDoubleOrNull() ?: 1.0,
+                    isLive = input.isLive
                 )
             }
 

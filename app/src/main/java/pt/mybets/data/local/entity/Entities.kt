@@ -35,7 +35,8 @@ data class GameEntity(
     val competition: String,
     val modalityId: Int, // Chave estrangeira para Modality
     val odd: Double,
-    val result: ResultState = ResultState.PENDING
+    val result: ResultState = ResultState.PENDING,
+    val isLive: Boolean = false
 )
 
 @Entity(tableName = "modalities")

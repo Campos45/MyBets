@@ -201,6 +201,18 @@ fun GameInputCard(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.fillMaxWidth()
             )
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Aposta em Live?", style = MaterialTheme.typography.bodyMedium)
+                Switch(
+                    checked = game.isLive,
+                    onCheckedChange = { onGameChange(game.copy(isLive = it)) }
+                )
+            }
         }
     }
 }

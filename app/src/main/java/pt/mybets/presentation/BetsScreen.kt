@@ -33,6 +33,7 @@ fun BetsScreen(
 ) {
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     val tabs = listOf("Em Aberto", "Concluídas")
+    var betToDelete by remember { mutableStateOf<BetWithGames?>(null) }
 
     // Filtrar apostas
     val filteredBets = remember(uiState.bets, selectedTabIndex) {
@@ -103,12 +104,35 @@ fun BetsScreen(
                             modalityMap = modalityMap,
                             onUpdateGameResult = onUpdateGameResult,
                             onMarkAllWon = onMarkAllWon,
-                            onDeleteBet = onDeleteBet
+                            onDeleteBet = { betToDelete = bwg }
                         )
                     }
                 }
             }
         }
+    }
+
+    if (betToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { betToDelete = null },
+            title = { Text("Eliminar Aposta") },
+            text = { Text("Tens a certeza que pretendes eliminar definitivamente esta aposta? Esta ação não pode ser desfeita.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        betToDelete?.let { onDeleteBet(it) }
+                        betToDelete = null
+                    }
+                ) {
+                    Text("Eliminar", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { betToDelete = null }) {
+                    Text("Cancelar")
+                }
+            }
+        )
     }
 }
 
@@ -178,7 +202,24 @@ fun BetCard(
                     Alignment.CenterVertically
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text(g.teams, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(g.teams, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
+                            if (g.isLive) {
+                                Spacer(Modifier.width(8.dp))
+                                Surface(
+                                    color = Color(0xFFD32F2F),
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
+                                ) {
+                                    Text(
+                                        text = "LIVE",
+                                        color = Color.White,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
                         Spacer(Modifier.height(2.dp))
                         Text(
                             text = "Comp: ${g.competition}  |  Mod: $modalityName",
