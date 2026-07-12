@@ -195,6 +195,13 @@ class BetViewModel(
         return BetStatsState(totalProfit, totalInvested, freeBetProfit, rate)
     }
 
+private data class GameOddDetail(
+    val odd: Double,
+    val stake: Double,
+    val isFreeBet: Boolean,
+    val isWon: Boolean
+)
+
     private fun calculateDetailedStats(bets: List<BetWithGames>, modalities: List<ModalityEntity>): DetailedStatsState {
         val finishedBets = bets.filter { it.bet.globalResult != ResultState.PENDING }
         if (finishedBets.isEmpty()) return DetailedStatsState()
@@ -213,31 +220,37 @@ class BetViewModel(
             ModalityStat(modName, (wins.toDouble() / games.size) * 100, games.size)
         }.sortedByDescending { it.total }
 
-        // Pré-calcular a odd acumulada e stake de cada aposta finalizada para evitar folds redundantes
-        val finishedBetsWithOdds = finishedBets.map { bwg ->
-            val totalOdd = bwg.games.fold(1.0) { acc, g ->
-                acc * (if (g.result == ResultState.VOID) 1.0 else g.odd)
+        // Planificar todos os jogos finalizados com os detalhes de odd e aposta pai
+        val finishedGamesWithDetails = finishedBets.flatMap { bwg ->
+            bwg.games.map { g ->
+                val gameOdd = if (g.result == ResultState.VOID) 1.0 else g.odd
+                val isWon = g.result == ResultState.WON
+                GameOddDetail(
+                    odd = gameOdd,
+                    stake = bwg.bet.stake,
+                    isFreeBet = bwg.bet.isFreeBet,
+                    isWon = isWon
+                )
             }
-            Triple(bwg, totalOdd, bwg.bet.stake)
         }
 
         val ranges = listOf("1.0-1.5", "1.5-2.0", "2.0-3.0", "3.0+")
         val oddRangeStats = ranges.map { range ->
-            val filtered = finishedBetsWithOdds.filter { (_, totalOdd, _) ->
+            val filtered = finishedGamesWithDetails.filter { detail ->
                 when (range) {
-                    "1.0-1.5" -> totalOdd in 1.0..1.5
-                    "1.5-2.0" -> totalOdd > 1.5 && totalOdd <= 2.0
-                    "2.0-3.0" -> totalOdd > 2.0 && totalOdd <= 3.0
-                    else -> totalOdd > 3.0
+                    "1.0-1.5" -> detail.odd in 1.0..1.5
+                    "1.5-2.0" -> detail.odd > 1.5 && detail.odd <= 2.0
+                    "2.0-3.0" -> detail.odd > 2.0 && detail.odd <= 3.0
+                    else -> detail.odd > 3.0
                 }
             }
 
             var totalStake = 0.0
             var totalReturn = 0.0
-            filtered.forEach { (bwg, totalOdd, stake) ->
-                if (!bwg.bet.isFreeBet) totalStake += stake
-                if (bwg.bet.globalResult == ResultState.WON) {
-                    totalReturn += stake * totalOdd
+            filtered.forEach { detail ->
+                if (!detail.isFreeBet) totalStake += detail.stake
+                if (detail.isWon) {
+                    totalReturn += detail.stake * detail.odd
                 }
             }
 
