@@ -42,11 +42,14 @@ class BetViewModel(
 ) : ViewModel() {
 
     init {
+        // Seeder automático desativado para garantir base de dados limpa na instalação
+        /*
         viewModelScope.launch {
             if (repository.getAllBetsWithGames().first().isEmpty()) {
                 seedDatabaseWithTestData()
             }
         }
+        */
     }
 
     private val _isLoading = MutableStateFlow(true)
