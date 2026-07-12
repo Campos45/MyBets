@@ -6,6 +6,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -25,6 +26,7 @@ import pt.mybets.presentation.AddBetScreen
 import pt.mybets.presentation.BetsScreen
 import pt.mybets.presentation.HomeScreen
 import pt.mybets.presentation.StatsScreen
+import pt.mybets.presentation.DataExplorerScreen
 import pt.mybets.presentation.viewmodel.BetViewModel
 
 object Routes {
@@ -32,6 +34,7 @@ object Routes {
     const val ADD_BET = "add_bet"
     const val STATS = "stats"
     const val BETS = "bets"
+    const val EXPLORER = "explorer"
 }
 
 @Composable
@@ -43,7 +46,7 @@ fun AppNavigation(viewModel: BetViewModel) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    val showBottomBar = currentRoute in listOf(Routes.HOME, Routes.BETS, Routes.STATS)
+    val showBottomBar = currentRoute in listOf(Routes.HOME, Routes.BETS, Routes.STATS, Routes.EXPLORER)
 
     Scaffold(
         bottomBar = {
@@ -91,6 +94,20 @@ fun AppNavigation(viewModel: BetViewModel) {
                         icon = { Icon(Icons.Default.Star, contentDescription = "Análise") },
                         label = { Text("Análise") }
                     )
+                    NavigationBarItem(
+                        selected = currentRoute == Routes.EXPLORER,
+                        onClick = {
+                            if (currentRoute != Routes.EXPLORER) {
+                                navController.navigate(Routes.EXPLORER) {
+                                    popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            }
+                        },
+                        icon = { Icon(Icons.Default.Search, contentDescription = "Explorar") },
+                        label = { Text("Explorar") }
+                    )
                 }
             }
         }
@@ -128,6 +145,12 @@ fun AppNavigation(viewModel: BetViewModel) {
             composable(Routes.STATS) {
                 StatsScreen(
                     uiState = uiState
+                )
+            }
+
+            composable(Routes.EXPLORER) {
+                DataExplorerScreen(
+                    viewModel = viewModel
                 )
             }
         }
