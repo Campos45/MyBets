@@ -36,9 +36,6 @@ import java.util.Locale
 fun HomeScreen(
     uiState: MainUiState,
     onNavigateToAddBet: () -> Unit,
-    onNavigateToStats: () -> Unit,
-    onUpdateGameResult: (BetWithGames, GameEntity, ResultState) -> Unit,
-    onMarkAllWon: (BetWithGames) -> Unit,
     onExportBackup: (android.net.Uri) -> Unit = {},
     onImportBackup: (android.net.Uri) -> Unit = {}
 ) {
@@ -57,8 +54,6 @@ fun HomeScreen(
             TopAppBar(
                 title = { Text("O Meu Tracker", fontWeight = FontWeight.Bold) },
                 actions = {
-                    IconButton(onClick = onNavigateToStats) { Icon(Icons.AutoMirrored.Filled.List, "Estatísticas") }
-
                     Box {
                         IconButton(onClick = { menuExpanded = true }) { Icon(Icons.Default.MoreVert, "Opções") }
 
@@ -101,17 +96,8 @@ fun HomeScreen(
                     StatsGrid(stats = uiState.stats)
                     Spacer(Modifier.height(16.dp))
                     ProfitLineChart(bets = uiState.bets)
-                    Spacer(Modifier.height(16.dp))
-                    Text("Histórico", style = MaterialTheme.typography.titleLarge)
+                    Spacer(Modifier.height(80.dp))
                 }
-                items(uiState.bets, key = { it.bet.id }) { bwg ->
-                    BetCard(
-                        bwg = bwg,
-                        onUpdateGameResult = onUpdateGameResult,
-                        onMarkAllWon = onMarkAllWon
-                    )
-                }
-                item { Spacer(Modifier.height(80.dp)) }
             }
         }
     }
@@ -230,85 +216,6 @@ fun ProfitLineChart(bets: List<BetWithGames>) {
                             end = Offset(size.width, zeroY),
                             strokeWidth = 1.dp.toPx()
                         )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun BetCard(
-    bwg: BetWithGames,
-    onUpdateGameResult: (BetWithGames, GameEntity, ResultState) -> Unit,
-    onMarkAllWon: (BetWithGames) -> Unit
-) {
-    val totalOdd = bwg.games.fold(1.0) { acc, g ->
-        acc * (if (g.result == ResultState.VOID) 1.0 else g.odd)
-    }
-
-    val color = when (bwg.bet.globalResult) {
-        ResultState.WON -> Color(0xFF4CAF50)
-        ResultState.LOST -> Color(0xFFF44336)
-        ResultState.VOID -> Color(0xFF2196F3)
-        else -> Color.Gray
-    }
-
-    Card(
-        Modifier.fillMaxWidth(),
-        border = CardDefaults.outlinedCardBorder().copy(brush = SolidColor(color))
-    ) {
-        Column(Modifier.padding(12.dp)) {
-            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                Column {
-                    Text(if (bwg.bet.isFreeBet) "Free Bet" else "Dinheiro Real", fontWeight = FontWeight.Bold)
-                    Text("Retorno: ${String.format(Locale.getDefault(), "%.2f", bwg.bet.stake * totalOdd)}€", style = MaterialTheme.typography.bodySmall)
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Odd: ${String.format(Locale.getDefault(), "%.2f", totalOdd)}", Modifier.padding(end = 8.dp))
-
-                    IconButton(onClick = { onMarkAllWon(bwg) }) {
-                        Icon(Icons.Default.CheckCircle, "Tudo Ganho", tint = MaterialTheme.colorScheme.primary)
-                    }
-                }
-            }
-
-            HorizontalDivider(Modifier.padding(vertical = 8.dp))
-
-            bwg.games.forEach { g ->
-                Row(
-                    Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    Arrangement.SpaceBetween,
-                    Alignment.CenterVertically
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(g.teams, style = MaterialTheme.typography.bodySmall)
-                        Text("Odd original: ${g.odd}", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                    }
-
-                    Row {
-                        IconButton(onClick = { onUpdateGameResult(bwg, g, ResultState.WON) }) {
-                            Icon(
-                                imageVector = Icons.Default.CheckCircle,
-                                contentDescription = "Ganho",
-                                tint = if (g.result == ResultState.WON) Color.Green else Color.Gray.copy(alpha = 0.5f)
-                            )
-                        }
-                        IconButton(onClick = { onUpdateGameResult(bwg, g, ResultState.LOST) }) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Perdido",
-                                tint = if (g.result == ResultState.LOST) Color.Red else Color.Gray.copy(alpha = 0.5f)
-                            )
-                        }
-                        IconButton(onClick = { onUpdateGameResult(bwg, g, ResultState.VOID) }) {
-                            Text(
-                                text = "=",
-                                fontWeight = FontWeight.ExtraBold,
-                                color = if (g.result == ResultState.VOID) Color(0xFF2196F3) else Color.Gray.copy(alpha = 0.5f),
-                                style = MaterialTheme.typography.titleLarge
-                            )
-                        }
                     }
                 }
             }

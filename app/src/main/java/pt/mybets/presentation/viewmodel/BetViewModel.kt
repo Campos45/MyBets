@@ -52,6 +52,7 @@ class BetViewModel(
                 bets = bets,
                 stats = calculateStats(bets),
                 detailedStats = calculateDetailedStats(bets, modalities),
+                modalities = modalities,
                 isLoading = false
             )
         }

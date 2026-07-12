@@ -17,8 +17,7 @@ import pt.mybets.presentation.viewmodel.MainUiState
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StatsScreen(
-    uiState: MainUiState,
-    onNavigateBack: () -> Unit
+    uiState: MainUiState
 ) {
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     val tabs = listOf("ROI por Odds", "Competições", "Modalidades")
@@ -26,10 +25,7 @@ fun StatsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Análise de Performance") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) { Icon(Icons.Default.ArrowBack, "Voltar") }
-                }
+                title = { Text("Análise de Performance") }
             )
         }
     ) { padding ->

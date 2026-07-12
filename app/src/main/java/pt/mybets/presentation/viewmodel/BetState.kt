@@ -3,6 +3,8 @@ package pt.mybets.presentation.viewmodel
 import androidx.compose.runtime.Immutable
 import pt.mybets.data.local.relations.BetWithGames
 
+import pt.mybets.data.local.entity.ModalityEntity
+
 @Immutable
 data class BetStatsState(
     val totalProfit: Double = 0.0,
@@ -16,6 +18,7 @@ data class MainUiState(
     val bets: List<BetWithGames> = emptyList(),
     val stats: BetStatsState = BetStatsState(),
     val detailedStats: DetailedStatsState = DetailedStatsState(), // Adiciona isto
+    val modalities: List<ModalityEntity> = emptyList(),
     val isLoading: Boolean = true
 )
 
