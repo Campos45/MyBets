@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import pt.mybets.presentation.viewmodel.MainUiState
+import pt.mybets.presentation.viewmodel.InsightType
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -20,7 +21,7 @@ fun StatsScreen(
     uiState: MainUiState
 ) {
     var selectedTabIndex by remember { mutableIntStateOf(0) }
-    val tabs = listOf("ROI por Odds", "Competições", "Modalidades")
+    val tabs = listOf("ROI por Odds", "Competições", "Modalidades", "Insights")
 
     Scaffold(
         topBar = {
@@ -94,6 +95,56 @@ fun StatsScreen(
                         } else {
                             items(uiState.detailedStats.modalityStats) { stat ->
                                 StatRow(name = stat.name, rate = stat.winRate, total = stat.total)
+                            }
+                        }
+                    }
+                    3 -> {
+                        val insights = uiState.detailedStats.insights
+                        if (insights.isEmpty()) {
+                            item {
+                                Box(
+                                    modifier = Modifier.fillMaxWidth().padding(32.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "Ainda não tens dados suficientes para gerar insights. Precisas de pelo menos 3 apostas concluídas numa mesma equipa, mercado ou competição ao vivo para extrair conclusões.",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = Color.Gray
+                                    )
+                                }
+                            }
+                        } else {
+                            items(insights) { insight ->
+                                val cardColor = when (insight.type) {
+                                    InsightType.POSITIVE -> Color(0xFFE8F5E9)
+                                    InsightType.WARNING -> Color(0xFFFFEBEE)
+                                    InsightType.INFO -> Color(0xFFE3F2FD)
+                                }
+                                val textColor = when (insight.type) {
+                                    InsightType.POSITIVE -> Color(0xFF2E7D32)
+                                    InsightType.WARNING -> Color(0xFFC62828)
+                                    InsightType.INFO -> Color(0xFF1565C0)
+                                }
+
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(containerColor = cardColor)
+                                ) {
+                                    Column(Modifier.padding(16.dp)) {
+                                        Text(
+                                            text = insight.title,
+                                            fontWeight = FontWeight.Bold,
+                                            color = textColor,
+                                            style = MaterialTheme.typography.titleMedium
+                                        )
+                                        Spacer(Modifier.height(4.dp))
+                                        Text(
+                                            text = insight.description,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = Color.DarkGray
+                                        )
+                                    }
+                                }
                             }
                         }
                     }

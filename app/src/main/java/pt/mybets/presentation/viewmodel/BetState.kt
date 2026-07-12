@@ -32,9 +32,21 @@ data class ModalityStat(val name: String, val winRate: Double, val total: Int)
 data class OddRangeStat(val range: String, val roi: Double, val totalBets: Int)
 
 @Immutable
+data class BetInsight(
+    val title: String,
+    val description: String,
+    val type: InsightType,
+    val winRate: Double,
+    val totalBets: Int
+)
+
+enum class InsightType { POSITIVE, WARNING, INFO }
+
+@Immutable
 data class DetailedStatsState(
     val competitionStats: List<CompetitionStat> = emptyList(),
     val modalityStats: List<ModalityStat> = emptyList(),
-    val oddRangeStats: List<OddRangeStat> = emptyList()
+    val oddRangeStats: List<OddRangeStat> = emptyList(),
+    val insights: List<BetInsight> = emptyList()
 )
 

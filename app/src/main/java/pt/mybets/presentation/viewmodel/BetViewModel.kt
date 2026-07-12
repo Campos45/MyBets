@@ -11,6 +11,7 @@ import pt.mybets.data.local.relations.BetWithGames
 import pt.mybets.domain.model.ResultState
 import pt.mybets.domain.repository.BetRepository
 import java.util.UUID
+import java.util.Locale
 
 import android.content.Context
 import android.net.Uri
@@ -39,6 +40,14 @@ data class GameInputState(
 class BetViewModel(
     private val repository: BetRepository
 ) : ViewModel() {
+
+    init {
+        viewModelScope.launch {
+            if (repository.getAllBetsWithGames().first().isEmpty()) {
+                seedDatabaseWithTestData()
+            }
+        }
+    }
 
     private val _isLoading = MutableStateFlow(true)
 
@@ -196,6 +205,7 @@ class BetViewModel(
     }
 
 private data class GameOddDetail(
+    val game: GameEntity,
     val odd: Double,
     val stake: Double,
     val isFreeBet: Boolean,
@@ -226,6 +236,7 @@ private data class GameOddDetail(
                 val gameOdd = if (g.result == ResultState.VOID) 1.0 else g.odd
                 val isWon = g.result == ResultState.WON
                 GameOddDetail(
+                    game = g,
                     odd = gameOdd,
                     stake = bwg.bet.stake,
                     isFreeBet = bwg.bet.isFreeBet,
@@ -258,7 +269,129 @@ private data class GameOddDetail(
             OddRangeStat(range, roi, filtered.size)
         }
 
-        return DetailedStatsState(compStats, modStats, oddRangeStats)
+        // --- GERAÇÃO AUTOMÁTICA DE INSIGHTS ---
+        val insights = mutableListOf<BetInsight>()
+
+        // 1. Mercados Live
+        finishedGamesWithDetails.groupBy { Pair(it.game.modalityId, it.game.isLive) }.forEach { (key, list) ->
+            val (modId, isLive) = key
+            if (isLive && list.size >= 3) {
+                val modName = modalityMap[modId] ?: "Desconhecida"
+                val wins = list.count { it.isWon }
+                val rate = (wins.toDouble() / list.size) * 100
+                if (rate >= 70.0) {
+                    insights.add(BetInsight(
+                        title = "🔥 Ponto Forte: Mercado $modName (Live)",
+                        description = "Tens uma taxa de acerto excelente de ${String.format(Locale.getDefault(), "%.1f", rate)}% em apostas ao vivo neste mercado (${list.size} apostas).",
+                        type = InsightType.POSITIVE,
+                        winRate = rate,
+                        totalBets = list.size
+                    ))
+                } else if (rate <= 40.0) {
+                    insights.add(BetInsight(
+                        title = "⚠️ Alerta: Mercado $modName (Live)",
+                        description = "Cuidado com as apostas ao vivo neste mercado. A tua taxa de acerto é de apenas ${String.format(Locale.getDefault(), "%.1f", rate)}% (${list.size} apostas).",
+                        type = InsightType.WARNING,
+                        winRate = rate,
+                        totalBets = list.size
+                    ))
+                }
+            }
+        }
+
+        // 2. Competições Live
+        finishedGamesWithDetails.groupBy { Pair(it.game.competition, it.game.isLive) }.forEach { (key, list) ->
+            val (competition, isLive) = key
+            if (isLive && list.size >= 3 && competition.isNotEmpty()) {
+                val wins = list.count { it.isWon }
+                val rate = (wins.toDouble() / list.size) * 100
+                if (rate >= 75.0) {
+                    insights.add(BetInsight(
+                        title = "⚽ Domínio em Live: $competition",
+                        description = "Estás a ter um excelente aproveitamento na competição $competition em direto, com ${String.format(Locale.getDefault(), "%.1f", rate)}% de taxa de acerto (${list.size} apostas).",
+                        type = InsightType.POSITIVE,
+                        winRate = rate,
+                        totalBets = list.size
+                    ))
+                } else if (rate <= 35.0) {
+                    insights.add(BetInsight(
+                        title = "🚨 Dificuldade em Live: $competition",
+                        description = "A tua performance ao vivo na competição $competition precisa de atenção. Taxa de acerto de apenas ${String.format(Locale.getDefault(), "%.1f", rate)}% (${list.size} apostas).",
+                        type = InsightType.WARNING,
+                        winRate = rate,
+                        totalBets = list.size
+                    ))
+                }
+            }
+        }
+
+        // 3. Equipas individuais em Live
+        val teamLiveList = finishedGamesWithDetails.flatMap { detail ->
+            val teamNames = detail.game.teams.split(" vs ")
+            teamNames.map { name -> Pair(name.trim(), detail) }
+        }.filter { it.first.isNotEmpty() }
+
+        teamLiveList.groupBy { Pair(it.first, it.second.game.isLive) }.forEach { (key, list) ->
+            val (teamName, isLive) = key
+            if (isLive && list.size >= 3) {
+                val wins = list.count { it.second.isWon }
+                val rate = (wins.toDouble() / list.size) * 100
+                if (rate >= 75.0) {
+                    insights.add(BetInsight(
+                        title = "💪 Padrão de Lucro: $teamName (Live)",
+                        description = "Tens uma fantástica taxa de acerto de ${String.format(Locale.getDefault(), "%.1f", rate)}% ao apostar em direto com o $teamName envolvido (${list.size} apostas).",
+                        type = InsightType.POSITIVE,
+                        winRate = rate,
+                        totalBets = list.size
+                    ))
+                } else if (rate <= 35.0) {
+                    insights.add(BetInsight(
+                        title = "📉 Risco Elevado: $teamName (Live)",
+                        description = "Tens tido fraco desempenho em apostas ao vivo com o $teamName. A tua taxa de acerto é de apenas ${String.format(Locale.getDefault(), "%.1f", rate)}% (${list.size} apostas).",
+                        type = InsightType.WARNING,
+                        winRate = rate,
+                        totalBets = list.size
+                    ))
+                }
+            }
+        }
+
+        // 4. Odds em Live (faixas)
+        val rangesList = listOf("1.0-1.5", "1.5-2.0", "2.0-3.0", "3.0+")
+        rangesList.forEach { range ->
+            val list = finishedGamesWithDetails.filter { detail ->
+                val matchRange = when (range) {
+                    "1.0-1.5" -> detail.odd in 1.0..1.5
+                    "1.5-2.0" -> detail.odd > 1.5 && detail.odd <= 2.0
+                    "2.0-3.0" -> detail.odd > 2.0 && detail.odd <= 3.0
+                    else -> detail.odd > 3.0
+                }
+                matchRange && detail.game.isLive
+            }
+            if (list.size >= 3) {
+                val wins = list.count { it.isWon }
+                val rate = (wins.toDouble() / list.size) * 100
+                if (rate >= 70.0) {
+                    insights.add(BetInsight(
+                        title = "📈 Odds Favoráveis (Live): Faixa $range",
+                        description = "As tuas apostas em direto com odds na faixa de $range têm trazido excelente retorno, com taxa de acerto de ${String.format(Locale.getDefault(), "%.1f", rate)}% (${list.size} apostas).",
+                        type = InsightType.INFO,
+                        winRate = rate,
+                        totalBets = list.size
+                    ))
+                } else if (rate <= 35.0) {
+                    insights.add(BetInsight(
+                        title = "⚠️ Odds Perigosas (Live): Faixa $range",
+                        description = "Aposta com cautela ao vivo nesta faixa de odd ($range). A tua taxa de acerto é de apenas ${String.format(Locale.getDefault(), "%.1f", rate)}% (${list.size} apostas).",
+                        type = InsightType.WARNING,
+                        winRate = rate,
+                        totalBets = list.size
+                    ))
+                }
+            }
+        }
+
+        return DetailedStatsState(compStats, modStats, oddRangeStats, insights)
     }
 
     // --- EXPORTAÇÃO E IMPORTAÇÃO JSON ---
@@ -313,5 +446,88 @@ private data class GameOddDetail(
                 Toast.makeText(context, "Ficheiro inválido ou corrompido.", Toast.LENGTH_LONG).show()
             }
         }
+    }
+
+    private suspend fun seedDatabaseWithTestData() {
+        val modality1 = repository.insertModality(ModalityEntity(name = "1X2"))
+        val modality2 = repository.insertModality(ModalityEntity(name = "Over 2.5"))
+        val modality3 = repository.insertModality(ModalityEntity(name = "Ambas Marcam"))
+        val modality4 = repository.insertModality(ModalityEntity(name = "Vencedor"))
+
+        repository.insertBetWithGames(
+            bet = BetEntity(stake = 10.0, isFreeBet = false, isFinished = true, globalResult = ResultState.WON),
+            games = listOf(
+                GameEntity(betId = 0, teams = "Benfica vs Porto", competition = "Primeira Liga", modalityId = modality2.toInt(), odd = 1.85, result = ResultState.WON, isLive = true)
+            )
+        )
+        repository.insertBetWithGames(
+            bet = BetEntity(stake = 5.0, isFreeBet = true, isFinished = true, globalResult = ResultState.WON),
+            games = listOf(
+                GameEntity(betId = 0, teams = "Sporting vs Braga", competition = "Primeira Liga", modalityId = modality3.toInt(), odd = 1.70, result = ResultState.WON, isLive = true)
+            )
+        )
+        repository.insertBetWithGames(
+            bet = BetEntity(stake = 20.0, isFreeBet = false, isFinished = true, globalResult = ResultState.WON),
+            games = listOf(
+                GameEntity(betId = 0, teams = "Real Madrid vs Barcelona", competition = "La Liga", modalityId = modality1.toInt(), odd = 2.10, result = ResultState.WON, isLive = false)
+            )
+        )
+        repository.insertBetWithGames(
+            bet = BetEntity(stake = 15.0, isFreeBet = false, isFinished = true, globalResult = ResultState.LOST),
+            games = listOf(
+                GameEntity(betId = 0, teams = "Lakers vs Celtics", competition = "NBA", modalityId = modality4.toInt(), odd = 1.90, result = ResultState.LOST, isLive = true)
+            )
+        )
+        repository.insertBetWithGames(
+            bet = BetEntity(stake = 10.0, isFreeBet = false, isFinished = true, globalResult = ResultState.LOST),
+            games = listOf(
+                GameEntity(betId = 0, teams = "Man City vs Liverpool", competition = "Premier League", modalityId = modality2.toInt(), odd = 1.65, result = ResultState.LOST, isLive = true)
+            )
+        )
+        repository.insertBetWithGames(
+            bet = BetEntity(stake = 10.0, isFreeBet = false, isFinished = true, globalResult = ResultState.WON),
+            games = listOf(
+                GameEntity(betId = 0, teams = "Benfica vs Guimaraes", competition = "Primeira Liga", modalityId = modality2.toInt(), odd = 1.55, result = ResultState.WON, isLive = true),
+                GameEntity(betId = 0, teams = "Porto vs Boavista", competition = "Primeira Liga", modalityId = modality1.toInt(), odd = 1.30, result = ResultState.WON, isLive = true)
+            )
+        )
+        repository.insertBetWithGames(
+            bet = BetEntity(stake = 5.0, isFreeBet = false, isFinished = true, globalResult = ResultState.WON),
+            games = listOf(
+                GameEntity(betId = 0, teams = "Arsenal vs Chelsea", competition = "Premier League", modalityId = modality3.toInt(), odd = 1.80, result = ResultState.WON, isLive = false),
+                GameEntity(betId = 0, teams = "Bayern vs Dortmund", competition = "Bundesliga", modalityId = modality2.toInt(), odd = 1.40, result = ResultState.WON, isLive = false)
+            )
+        )
+        repository.insertBetWithGames(
+            bet = BetEntity(stake = 10.0, isFreeBet = false, isFinished = false, globalResult = ResultState.PENDING),
+            games = listOf(
+                GameEntity(betId = 0, teams = "PSG vs Marseille", competition = "Ligue 1", modalityId = modality1.toInt(), odd = 1.50, result = ResultState.PENDING, isLive = false),
+                GameEntity(betId = 0, teams = "Juventus vs Inter", competition = "Serie A", modalityId = modality3.toInt(), odd = 1.90, result = ResultState.PENDING, isLive = false)
+            )
+        )
+        repository.insertBetWithGames(
+            bet = BetEntity(stake = 10.0, isFreeBet = false, isFinished = true, globalResult = ResultState.WON),
+            games = listOf(
+                GameEntity(betId = 0, teams = "Porto vs Gil Vicente", competition = "Primeira Liga", modalityId = modality2.toInt(), odd = 1.60, result = ResultState.WON, isLive = true)
+            )
+        )
+        repository.insertBetWithGames(
+            bet = BetEntity(stake = 10.0, isFreeBet = false, isFinished = true, globalResult = ResultState.WON),
+            games = listOf(
+                GameEntity(betId = 0, teams = "Benfica vs Arouca", competition = "Primeira Liga", modalityId = modality2.toInt(), odd = 1.50, result = ResultState.WON, isLive = true)
+            )
+        )
+        repository.insertBetWithGames(
+            bet = BetEntity(stake = 15.0, isFreeBet = false, isFinished = true, globalResult = ResultState.LOST),
+            games = listOf(
+                GameEntity(betId = 0, teams = "Lakers vs Warriors", competition = "NBA", modalityId = modality4.toInt(), odd = 1.85, result = ResultState.LOST, isLive = true)
+            )
+        )
+        repository.insertBetWithGames(
+            bet = BetEntity(stake = 20.0, isFreeBet = false, isFinished = true, globalResult = ResultState.LOST),
+            games = listOf(
+                GameEntity(betId = 0, teams = "Bulls vs Heat", competition = "NBA", modalityId = modality4.toInt(), odd = 1.75, result = ResultState.LOST, isLive = true)
+            )
+        )
     }
 }
