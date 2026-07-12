@@ -4,9 +4,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,6 +19,8 @@ import pt.mybets.data.local.entity.GameEntity
 import pt.mybets.data.local.relations.BetWithGames
 import pt.mybets.domain.model.ResultState
 import pt.mybets.presentation.viewmodel.MainUiState
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -26,7 +28,8 @@ import java.util.Locale
 fun BetsScreen(
     uiState: MainUiState,
     onUpdateGameResult: (BetWithGames, GameEntity, ResultState) -> Unit,
-    onMarkAllWon: (BetWithGames) -> Unit
+    onMarkAllWon: (BetWithGames) -> Unit,
+    onDeleteBet: (BetWithGames) -> Unit
 ) {
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     val tabs = listOf("Em Aberto", "Concluídas")
@@ -99,7 +102,8 @@ fun BetsScreen(
                             bwg = bwg,
                             modalityMap = modalityMap,
                             onUpdateGameResult = onUpdateGameResult,
-                            onMarkAllWon = onMarkAllWon
+                            onMarkAllWon = onMarkAllWon,
+                            onDeleteBet = onDeleteBet
                         )
                     }
                 }
@@ -113,7 +117,8 @@ fun BetCard(
     bwg: BetWithGames,
     modalityMap: Map<Int, String>,
     onUpdateGameResult: (BetWithGames, GameEntity, ResultState) -> Unit,
-    onMarkAllWon: (BetWithGames) -> Unit
+    onMarkAllWon: (BetWithGames) -> Unit,
+    onDeleteBet: (BetWithGames) -> Unit
 ) {
     val totalOdd = bwg.games.fold(1.0) { acc, g ->
         acc * (if (g.result == ResultState.VOID) 1.0 else g.odd)
@@ -125,6 +130,9 @@ fun BetCard(
         ResultState.VOID -> Color(0xFF2196F3)
         else -> Color.Gray
     }
+
+    val dateFormatter = remember { SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()) }
+    val formattedDate = dateFormatter.format(Date(bwg.bet.dateTimestamp))
 
     Card(
         Modifier.fillMaxWidth(),
@@ -138,6 +146,11 @@ fun BetCard(
                         "Retorno: ${String.format(Locale.getDefault(), "%.2f", bwg.bet.stake * totalOdd)}€",
                         style = MaterialTheme.typography.bodySmall
                     )
+                    Text(
+                        text = formattedDate,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.Gray
+                    )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Odd total: ${String.format(Locale.getDefault(), "%.2f", totalOdd)}", Modifier.padding(end = 8.dp))
@@ -146,6 +159,9 @@ fun BetCard(
                         IconButton(onClick = { onMarkAllWon(bwg) }) {
                             Icon(Icons.Default.CheckCircle, "Tudo Ganho", tint = MaterialTheme.colorScheme.primary)
                         }
+                    }
+                    IconButton(onClick = { onDeleteBet(bwg) }) {
+                        Icon(Icons.Default.Delete, "Eliminar Aposta", tint = MaterialTheme.colorScheme.error)
                     }
                 }
             }

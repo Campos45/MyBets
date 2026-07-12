@@ -24,4 +24,5 @@ interface BetRepository {
 
     suspend fun getBackupData(): pt.mybets.domain.model.BackupData
     suspend fun restoreBackupData(backupData: pt.mybets.domain.model.BackupData)
+    suspend fun deleteBet(bet: BetEntity)
 }

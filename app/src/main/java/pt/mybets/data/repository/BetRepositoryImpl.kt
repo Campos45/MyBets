@@ -62,4 +62,9 @@ class BetRepositoryImpl(
     override suspend fun restoreBackupData(backupData: pt.mybets.domain.model.BackupData) {
         dao.restoreFullBackup(backupData) // Substitui as múltiplas chamadas por esta única segura
     }
+
+    override suspend fun deleteBet(bet: BetEntity) {
+        dao.deleteBet(bet)
+        dao.insertLog(AppLogEntity(action = "DELETE_BET_ID_${bet.id}"))
+    }
 }

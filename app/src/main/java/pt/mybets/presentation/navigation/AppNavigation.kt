@@ -113,7 +113,8 @@ fun AppNavigation(viewModel: BetViewModel) {
                 BetsScreen(
                     uiState = uiState,
                     onUpdateGameResult = viewModel::updateGameResult,
-                    onMarkAllWon = viewModel::markAllGamesAsWon
+                    onMarkAllWon = viewModel::markAllGamesAsWon,
+                    onDeleteBet = { viewModel.deleteBet(it.bet) }
                 )
             }
 

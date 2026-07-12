@@ -90,8 +90,9 @@ class BetViewModel(
     }
 
     // Função para atualizar o resultado de um jogo específico
-    fun updateGameResult(betWithGames: BetWithGames, game: GameEntity, newResult: ResultState) {
+    fun updateGameResult(betWithGames: BetWithGames, game: GameEntity, clickedResult: ResultState) {
         viewModelScope.launch {
+            val newResult = if (game.result == clickedResult) ResultState.PENDING else clickedResult
             val updatedGame = game.copy(result = newResult)
             repository.updateGame(updatedGame)
 
@@ -107,15 +108,20 @@ class BetViewModel(
                 else -> ResultState.PENDING
             }
 
-            if (betWithGames.bet.globalResult != newBetResult) {
-                val isFinished = newBetResult != ResultState.PENDING
-                repository.updateBetStatus(
-                    betWithGames.bet.copy(
-                        globalResult = newBetResult,
-                        isFinished = isFinished
-                    )
+            // A aposta também passa a não estar concluída se newBetResult for PENDING
+            val isFinished = newBetResult != ResultState.PENDING
+            repository.updateBetStatus(
+                betWithGames.bet.copy(
+                    globalResult = newBetResult,
+                    isFinished = isFinished
                 )
-            }
+            )
+        }
+    }
+
+    fun deleteBet(bet: BetEntity) {
+        viewModelScope.launch {
+            repository.deleteBet(bet)
         }
     }
 
