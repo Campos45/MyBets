@@ -70,6 +70,9 @@ dependencies {
 
     implementation("com.google.android.material:material:1.11.0")
 
+    // Google ML Kit Text Recognition
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.1")
+
     // Testes
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

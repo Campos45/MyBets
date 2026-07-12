@@ -16,17 +16,55 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import pt.mybets.presentation.viewmodel.BetViewModel
 import pt.mybets.presentation.viewmodel.GameInputState
-
 import androidx.compose.ui.window.PopupProperties
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import pt.mybets.presentation.util.ScreenshotParser
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddBetScreen(
     viewModel: BetViewModel,
     onNavigateBack: () -> Unit
 ) {
+    val context = LocalContext.current
     var stake by remember { mutableStateOf("") }
     var isFreeBet by remember { mutableStateOf(false) }
     var games by remember { mutableStateOf(listOf(GameInputState())) }
+    var isLoadingImage by remember { mutableStateOf(false) }
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            isLoadingImage = true
+            try {
+                val image = InputImage.fromFilePath(context, uri)
+                val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+                recognizer.process(image)
+                    .addOnSuccessListener { visionText ->
+                        isLoadingImage = false
+                        val (parsedStake, parsedGames) = ScreenshotParser.parseTextToGameInputs(visionText.text)
+                        if (parsedStake != null) {
+                            stake = parsedStake.toString()
+                        }
+                        if (parsedGames.isNotEmpty()) {
+                            games = parsedGames
+                        }
+                    }
+                    .addOnFailureListener {
+                        isLoadingImage = false
+                    }
+            } catch (e: Exception) {
+                isLoadingImage = false
+            }
+        }
+    }
 
     val modalities by viewModel.modalities.collectAsState()
     val teamSuggestions by viewModel.teamSuggestions.collectAsState()
@@ -77,6 +115,26 @@ fun AddBetScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
+                if (isLoadingImage) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                } else {
+                    Button(
+                        onClick = { imagePickerLauncher.launch("image/*") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp)
+                    ) {
+                        Text("Importar do Screenshot")
+                    }
+                }
+
                 OutlinedTextField(
                     value = stake,
                     onValueChange = { stake = it },
