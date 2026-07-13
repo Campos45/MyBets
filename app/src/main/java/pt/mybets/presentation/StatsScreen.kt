@@ -108,7 +108,7 @@ fun StatsScreen(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        text = "Ainda não tens dados suficientes para gerar insights. Precisas de pelo menos 3 apostas concluídas numa mesma equipa, mercado ou competição ao vivo para extrair conclusões.",
+                                        text = "Ainda não tens dados suficientes para gerar insights. Precisas de pelo menos 3 apostas concluídas numa mesma equipa, mercado ou competição para extrair conclusões.",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = Color.Gray
                                     )

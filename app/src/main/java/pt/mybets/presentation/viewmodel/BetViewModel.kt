@@ -275,121 +275,225 @@ private data class GameOddDetail(
         // --- GERAÇÃO AUTOMÁTICA DE INSIGHTS ---
         val insights = mutableListOf<BetInsight>()
 
-        // 1. Mercados Live
-        finishedGamesWithDetails.groupBy { Pair(it.game.modalityId, it.game.isLive) }.forEach { (key, list) ->
-            val (modId, isLive) = key
-            if (isLive && list.size >= 3) {
-                val modName = modalityMap[modId] ?: "Desconhecida"
+        // 1. Mercados (Global, Live e Pré-Jogo)
+        finishedGamesWithDetails.groupBy { it.game.modalityId }.forEach { (modId, list) ->
+            val modName = modalityMap[modId] ?: "Desconhecida"
+            // Global
+            if (list.size >= 3) {
                 val wins = list.count { it.isWon }
                 val rate = (wins.toDouble() / list.size) * 100
                 if (rate >= 70.0) {
                     insights.add(BetInsight(
-                        title = "🔥 Ponto Forte: Mercado $modName (Live)",
-                        description = "Tens uma taxa de acerto excelente de ${String.format(Locale.getDefault(), "%.1f", rate)}% em apostas ao vivo neste mercado (${list.size} apostas).",
+                        title = "🔥 Ponto Forte: Mercado $modName",
+                        description = "Tens uma taxa de acerto excelente de ${String.format(Locale.getDefault(), "%.1f", rate)}% neste mercado (${list.size} apostas).",
                         type = InsightType.POSITIVE,
                         winRate = rate,
                         totalBets = list.size
                     ))
                 } else if (rate <= 40.0) {
                     insights.add(BetInsight(
-                        title = "⚠️ Alerta: Mercado $modName (Live)",
-                        description = "Cuidado com as apostas ao vivo neste mercado. A tua taxa de acerto é de apenas ${String.format(Locale.getDefault(), "%.1f", rate)}% (${list.size} apostas).",
+                        title = "⚠️ Alerta: Mercado $modName",
+                        description = "Cuidado com as apostas neste mercado. A tua taxa de acerto é de apenas ${String.format(Locale.getDefault(), "%.1f", rate)}% (${list.size} apostas).",
                         type = InsightType.WARNING,
                         winRate = rate,
                         totalBets = list.size
                     ))
                 }
             }
-        }
-
-        // 2. Competições Live
-        finishedGamesWithDetails.groupBy { Pair(it.game.competition, it.game.isLive) }.forEach { (key, list) ->
-            val (competition, isLive) = key
-            if (isLive && list.size >= 3 && competition.isNotEmpty()) {
-                val wins = list.count { it.isWon }
-                val rate = (wins.toDouble() / list.size) * 100
-                if (rate >= 75.0) {
-                    insights.add(BetInsight(
-                        title = "⚽ Domínio em Live: $competition",
-                        description = "Estás a ter um excelente aproveitamento na competição $competition em direto, com ${String.format(Locale.getDefault(), "%.1f", rate)}% de taxa de acerto (${list.size} apostas).",
-                        type = InsightType.POSITIVE,
-                        winRate = rate,
-                        totalBets = list.size
-                    ))
-                } else if (rate <= 35.0) {
-                    insights.add(BetInsight(
-                        title = "🚨 Dificuldade em Live: $competition",
-                        description = "A tua performance ao vivo na competição $competition precisa de atenção. Taxa de acerto de apenas ${String.format(Locale.getDefault(), "%.1f", rate)}% (${list.size} apostas).",
-                        type = InsightType.WARNING,
-                        winRate = rate,
-                        totalBets = list.size
-                    ))
+            // Por Live/Pré-Jogo
+            list.groupBy { it.game.isLive }.forEach { (isLive, subList) ->
+                if (subList.size >= 3) {
+                    val wins = subList.count { it.isWon }
+                    val rate = (wins.toDouble() / subList.size) * 100
+                    val liveStr = if (isLive) "Live" else "Pré-Jogo"
+                    if (rate >= 70.0) {
+                        insights.add(BetInsight(
+                            title = "🔥 Ponto Forte: Mercado $modName ($liveStr)",
+                            description = "Tens uma taxa de acerto excelente de ${String.format(Locale.getDefault(), "%.1f", rate)}% em apostas $liveStr neste mercado (${subList.size} apostas).",
+                            type = InsightType.POSITIVE,
+                            winRate = rate,
+                            totalBets = subList.size
+                        ))
+                    } else if (rate <= 40.0) {
+                        insights.add(BetInsight(
+                            title = "⚠️ Alerta: Mercado $modName ($liveStr)",
+                            description = "Cuidado com as apostas $liveStr neste mercado. A tua taxa de acerto é de apenas ${String.format(Locale.getDefault(), "%.1f", rate)}% (${subList.size} apostas).",
+                            type = InsightType.WARNING,
+                            winRate = rate,
+                            totalBets = subList.size
+                        ))
+                    }
                 }
             }
         }
 
-        // 3. Equipas individuais em Live
-        val teamLiveList = finishedGamesWithDetails.flatMap { detail ->
+        // 2. Competições (Global, Live e Pré-Jogo)
+        finishedGamesWithDetails.groupBy { it.game.competition }.forEach { (competition, list) ->
+            if (competition.isNotEmpty()) {
+                // Global
+                if (list.size >= 3) {
+                    val wins = list.count { it.isWon }
+                    val rate = (wins.toDouble() / list.size) * 100
+                    if (rate >= 75.0) {
+                        insights.add(BetInsight(
+                            title = "⚽ Domínio: $competition",
+                            description = "Estás a ter um excelente aproveitamento na competição $competition, com ${String.format(Locale.getDefault(), "%.1f", rate)}% de taxa de acerto (${list.size} apostas).",
+                            type = InsightType.POSITIVE,
+                            winRate = rate,
+                            totalBets = list.size
+                        ))
+                    } else if (rate <= 35.0) {
+                        insights.add(BetInsight(
+                            title = "🚨 Dificuldade: $competition",
+                            description = "A tua performance na competição $competition precisa de atenção. Taxa de acerto de apenas ${String.format(Locale.getDefault(), "%.1f", rate)}% (${list.size} apostas).",
+                            type = InsightType.WARNING,
+                            winRate = rate,
+                            totalBets = list.size
+                        ))
+                    }
+                }
+                // Por Live/Pré-Jogo
+                list.groupBy { it.game.isLive }.forEach { (isLive, subList) ->
+                    if (subList.size >= 3) {
+                        val wins = subList.count { it.isWon }
+                        val rate = (wins.toDouble() / subList.size) * 100
+                        val liveStr = if (isLive) "Live" else "Pré-Jogo"
+                        if (rate >= 75.0) {
+                            insights.add(BetInsight(
+                                title = "⚽ Domínio em $liveStr: $competition",
+                                description = "Estás a ter um excelente aproveitamento na competição $competition em $liveStr, com ${String.format(Locale.getDefault(), "%.1f", rate)}% de taxa de acerto (${subList.size} apostas).",
+                                type = InsightType.POSITIVE,
+                                winRate = rate,
+                                totalBets = subList.size
+                            ))
+                        } else if (rate <= 35.0) {
+                            insights.add(BetInsight(
+                                title = "🚨 Dificuldade em $liveStr: $competition",
+                                description = "A tua performance em $liveStr na competição $competition precisa de atenção. Taxa de acerto de apenas ${String.format(Locale.getDefault(), "%.1f", rate)}% (${subList.size} apostas).",
+                                type = InsightType.WARNING,
+                                winRate = rate,
+                                totalBets = subList.size
+                            ))
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Equipas individuais (Global, Live e Pré-Jogo)
+        val teamDetailsList = finishedGamesWithDetails.flatMap { detail ->
             val teamNames = detail.game.teams.split(" vs ")
             teamNames.map { name -> Pair(name.trim(), detail) }
         }.filter { it.first.isNotEmpty() }
 
-        teamLiveList.groupBy { Pair(it.first, it.second.game.isLive) }.forEach { (key, list) ->
-            val (teamName, isLive) = key
-            if (isLive && list.size >= 3) {
-                val wins = list.count { it.second.isWon }
-                val rate = (wins.toDouble() / list.size) * 100
+        teamDetailsList.groupBy { it.first }.forEach { (teamName, list) ->
+            val detailList = list.map { it.second }
+            // Global
+            if (detailList.size >= 3) {
+                val wins = detailList.count { it.isWon }
+                val rate = (wins.toDouble() / detailList.size) * 100
                 if (rate >= 75.0) {
                     insights.add(BetInsight(
-                        title = "💪 Padrão de Lucro: $teamName (Live)",
-                        description = "Tens uma fantástica taxa de acerto de ${String.format(Locale.getDefault(), "%.1f", rate)}% ao apostar em direto com o $teamName envolvido (${list.size} apostas).",
+                        title = "💪 Padrão de Lucro: $teamName",
+                        description = "Tens uma fantástica taxa de acerto de ${String.format(Locale.getDefault(), "%.1f", rate)}% ao apostar com o $teamName envolvido (${detailList.size} apostas).",
                         type = InsightType.POSITIVE,
                         winRate = rate,
-                        totalBets = list.size
+                        totalBets = detailList.size
                     ))
                 } else if (rate <= 35.0) {
                     insights.add(BetInsight(
-                        title = "📉 Risco Elevado: $teamName (Live)",
-                        description = "Tens tido fraco desempenho em apostas ao vivo com o $teamName. A tua taxa de acerto é de apenas ${String.format(Locale.getDefault(), "%.1f", rate)}% (${list.size} apostas).",
+                        title = "📉 Risco Elevado: $teamName",
+                        description = "Tens tido fraco desempenho em apostas com o $teamName. A tua taxa de acerto é de apenas ${String.format(Locale.getDefault(), "%.1f", rate)}% (${detailList.size} apostas).",
                         type = InsightType.WARNING,
                         winRate = rate,
-                        totalBets = list.size
+                        totalBets = detailList.size
                     ))
+                }
+            }
+            // Por Live/Pré-Jogo
+            list.groupBy { it.second.game.isLive }.forEach { (isLive, subList) ->
+                val subDetailList = subList.map { it.second }
+                if (subDetailList.size >= 3) {
+                    val wins = subDetailList.count { it.isWon }
+                    val rate = (wins.toDouble() / subDetailList.size) * 100
+                    val liveStr = if (isLive) "Live" else "Pré-Jogo"
+                    if (rate >= 75.0) {
+                        insights.add(BetInsight(
+                            title = "💪 Padrão de Lucro: $teamName ($liveStr)",
+                            description = "Tens uma fantástica taxa de acerto de ${String.format(Locale.getDefault(), "%.1f", rate)}% ao apostar em $liveStr com o $teamName envolvido (${subDetailList.size} apostas).",
+                            type = InsightType.POSITIVE,
+                            winRate = rate,
+                            totalBets = subDetailList.size
+                        ))
+                    } else if (rate <= 35.0) {
+                        insights.add(BetInsight(
+                            title = "📉 Risco Elevado: $teamName ($liveStr)",
+                            description = "Tens tido fraco desempenho em apostas em $liveStr com o $teamName. A tua taxa de acerto é de apenas ${String.format(Locale.getDefault(), "%.1f", rate)}% (${subDetailList.size} apostas).",
+                            type = InsightType.WARNING,
+                            winRate = rate,
+                            totalBets = subDetailList.size
+                        ))
+                    }
                 }
             }
         }
 
-        // 4. Odds em Live (faixas)
+        // 4. Odds (Global, Live e Pré-Jogo)
         val rangesList = listOf("1.0-1.5", "1.5-2.0", "2.0-3.0", "3.0+")
         rangesList.forEach { range ->
             val list = finishedGamesWithDetails.filter { detail ->
-                val matchRange = when (range) {
+                when (range) {
                     "1.0-1.5" -> detail.odd in 1.0..1.5
                     "1.5-2.0" -> detail.odd > 1.5 && detail.odd <= 2.0
                     "2.0-3.0" -> detail.odd > 2.0 && detail.odd <= 3.0
                     else -> detail.odd > 3.0
                 }
-                matchRange && detail.game.isLive
             }
+            // Global
             if (list.size >= 3) {
                 val wins = list.count { it.isWon }
                 val rate = (wins.toDouble() / list.size) * 100
                 if (rate >= 70.0) {
                     insights.add(BetInsight(
-                        title = "📈 Odds Favoráveis (Live): Faixa $range",
-                        description = "As tuas apostas em direto com odds na faixa de $range têm trazido excelente retorno, com taxa de acerto de ${String.format(Locale.getDefault(), "%.1f", rate)}% (${list.size} apostas).",
+                        title = "📈 Odds Favoráveis: Faixa $range",
+                        description = "As tuas apostas com odds na faixa de $range têm trazido excelente retorno, com taxa de acerto de ${String.format(Locale.getDefault(), "%.1f", rate)}% (${list.size} apostas).",
                         type = InsightType.INFO,
                         winRate = rate,
                         totalBets = list.size
                     ))
                 } else if (rate <= 35.0) {
                     insights.add(BetInsight(
-                        title = "⚠️ Odds Perigosas (Live): Faixa $range",
-                        description = "Aposta com cautela ao vivo nesta faixa de odd ($range). A tua taxa de acerto é de apenas ${String.format(Locale.getDefault(), "%.1f", rate)}% (${list.size} apostas).",
+                        title = "⚠️ Odds Perigosas: Faixa $range",
+                        description = "Aposta com cautela nesta faixa de odd ($range). A tua taxa de acerto é de apenas ${String.format(Locale.getDefault(), "%.1f", rate)}% (${list.size} apostas).",
                         type = InsightType.WARNING,
                         winRate = rate,
                         totalBets = list.size
                     ))
+                }
+            }
+            // Por Live/Pré-Jogo
+            list.groupBy { it.game.isLive }.forEach { (isLive, subList) ->
+                if (subList.size >= 3) {
+                    val wins = subList.count { it.isWon }
+                    val rate = (wins.toDouble() / subList.size) * 100
+                    val liveStr = if (isLive) "Live" else "Pré-Jogo"
+                    if (rate >= 70.0) {
+                        insights.add(BetInsight(
+                            title = "📈 Odds Favoráveis ($liveStr): Faixa $range",
+                            description = "As tuas apostas em $liveStr com odds na faixa de $range têm trazido excelente retorno, com taxa de acerto de ${String.format(Locale.getDefault(), "%.1f", rate)}% (${subList.size} apostas).",
+                            type = InsightType.INFO,
+                            winRate = rate,
+                            totalBets = subList.size
+                        ))
+                    } else if (rate <= 35.0) {
+                        insights.add(BetInsight(
+                            title = "⚠️ Odds Perigosas ($liveStr): Faixa $range",
+                            description = "Aposta com cautela em $liveStr nesta faixa de odd ($range). A tua taxa de acerto é de apenas ${String.format(Locale.getDefault(), "%.1f", rate)}% (${subList.size} apostas).",
+                            type = InsightType.WARNING,
+                            winRate = rate,
+                            totalBets = subList.size
+                        ))
+                    }
                 }
             }
         }

@@ -171,13 +171,18 @@ fun DataExplorerScreen(
         }
     }
 
-    // Métricas calculadas para os jogos filtrados
-    val totalInvested = matchedGames.sumOf { if (!it.second.isFreeBet) it.second.stake else 0.0 }
-    val totalReturn = matchedGames.sumOf { (game, bet) ->
-        if (game.result == ResultState.WON) {
-            bet.stake * (if (game.result == ResultState.VOID) 1.0 else game.odd)
-        } else if (game.result == ResultState.VOID) {
-            bet.stake
+    // Obter apenas as apostas únicas correspondentes aos jogos filtrados
+    val matchedBets = remember(matchedGames) {
+        matchedGames.map { it.second }.distinctBy { it.id }
+    }
+
+    // Métricas calculadas para as apostas filtradas
+    val totalInvested = matchedBets.sumOf { if (!it.isFreeBet) it.stake else 0.0 }
+    val totalReturn = matchedBets.sumOf { bet ->
+        if (bet.globalResult == ResultState.WON) {
+            val bwg = uiState.bets.find { it.bet.id == bet.id }
+            val odd = bwg?.games?.fold(1.0) { acc, g -> acc * (if (g.result == ResultState.VOID) 1.0 else g.odd) } ?: 1.0
+            bet.stake * odd
         } else {
             0.0
         }
