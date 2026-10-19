@@ -3,8 +3,8 @@ package pt.mybets.presentation.navigation
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
@@ -27,6 +27,7 @@ import pt.mybets.presentation.BetsScreen
 import pt.mybets.presentation.HomeScreen
 import pt.mybets.presentation.StatsScreen
 import pt.mybets.presentation.DataExplorerScreen
+import pt.mybets.presentation.ManageDataScreen
 import pt.mybets.presentation.viewmodel.BetViewModel
 
 object Routes {
@@ -35,6 +36,7 @@ object Routes {
     const val STATS = "stats"
     const val BETS = "bets"
     const val EXPLORER = "explorer"
+    const val MANAGE_DATA = "manage_data"
 }
 
 @Composable
@@ -77,7 +79,7 @@ fun AppNavigation(viewModel: BetViewModel) {
                                 }
                             }
                         },
-                        icon = { Icon(Icons.Default.List, contentDescription = "Apostas") },
+                        icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Apostas") },
                         label = { Text("Apostas") }
                     )
                     NavigationBarItem(
@@ -121,6 +123,7 @@ fun AppNavigation(viewModel: BetViewModel) {
                 HomeScreen(
                     uiState = uiState,
                     onNavigateToAddBet = { navController.navigate(Routes.ADD_BET) },
+                    onNavigateToManageData = { navController.navigate(Routes.MANAGE_DATA) },
                     onExportBackup = { uri -> viewModel.exportDatabase(context, uri) },
                     onImportBackup = { uri -> viewModel.importDatabase(context, uri) }
                 )
@@ -131,7 +134,11 @@ fun AppNavigation(viewModel: BetViewModel) {
                     uiState = uiState,
                     onUpdateGameResult = viewModel::updateGameResult,
                     onMarkAllWon = viewModel::markAllGamesAsWon,
-                    onDeleteBet = { viewModel.deleteBet(it.bet) }
+                    onDeleteBet = { viewModel.deleteBet(it.bet) },
+                    onCopyBet = { bwg, modalityMap ->
+                        viewModel.copyBet(bwg, modalityMap)
+                        navController.navigate(Routes.ADD_BET)
+                    }
                 )
             }
 
@@ -150,7 +157,15 @@ fun AppNavigation(viewModel: BetViewModel) {
 
             composable(Routes.EXPLORER) {
                 DataExplorerScreen(
-                    viewModel = viewModel
+                    viewModel = viewModel,
+                    onNavigateToManageData = { navController.navigate(Routes.MANAGE_DATA) }
+                )
+            }
+
+            composable(Routes.MANAGE_DATA) {
+                ManageDataScreen(
+                    viewModel = viewModel,
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
         }

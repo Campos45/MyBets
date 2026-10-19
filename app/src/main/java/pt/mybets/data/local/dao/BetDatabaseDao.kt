@@ -48,6 +48,36 @@ interface BetDatabaseDao {
     @Query("SELECT DISTINCT competition FROM games WHERE competition != ''")
     fun getAllUniqueCompetitions(): Flow<List<String>>
 
+    // --- MODALITIES MANAGEMENT ---
+    @Query("UPDATE modalities SET name = :newName WHERE id = :id")
+    suspend fun updateModalityName(id: Int, newName: String)
+
+    @Query("UPDATE games SET modalityId = :targetModalityId WHERE modalityId = :sourceModalityId")
+    suspend fun reassignGamesModality(sourceModalityId: Int, targetModalityId: Int)
+
+    @Query("DELETE FROM modalities WHERE id = :id")
+    suspend fun deleteModality(id: Int)
+
+    // --- COMPETITIONS MANAGEMENT ---
+    @Query("UPDATE games SET competition = :newName WHERE competition = :oldName")
+    suspend fun updateCompetitionName(oldName: String, newName: String)
+
+    // --- NAME ALIASES ---
+    @Query("SELECT * FROM name_aliases ORDER BY canonicalName ASC")
+    fun getAllNameAliases(): Flow<List<NameAliasEntity>>
+
+    @Query("SELECT * FROM name_aliases")
+    suspend fun getAllNameAliasesRaw(): List<NameAliasEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertNameAlias(alias: NameAliasEntity): Long
+
+    @Query("DELETE FROM name_aliases WHERE id = :id")
+    suspend fun deleteNameAlias(id: Int)
+
+    @Query("DELETE FROM name_aliases WHERE category = :category AND alias = :alias")
+    suspend fun deleteNameAliasByCategoryAndAlias(category: String, alias: String)
+
     // --- FUNÇÕES DE BACKUP (JSON) ---
     @Query("SELECT * FROM bets")
     suspend fun getAllBetsRaw(): List<BetEntity>
@@ -73,6 +103,9 @@ interface BetDatabaseDao {
     @Query("DELETE FROM app_logs")
     suspend fun deleteAllLogs()
 
+    @Query("DELETE FROM name_aliases")
+    suspend fun deleteAllNameAliases()
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertBetsRaw(bets: List<BetEntity>)
 
@@ -82,6 +115,9 @@ interface BetDatabaseDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertLogsRaw(logs: List<AppLogEntity>)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertNameAliasesRaw(aliases: List<NameAliasEntity>)
+
     // ADICIONADO: Transação segura para o Restore
     @Transaction
     suspend fun restoreFullBackup(backup: pt.mybets.domain.model.BackupData) {
@@ -89,11 +125,48 @@ interface BetDatabaseDao {
         deleteAllBets()
         deleteAllModalities()
         deleteAllLogs()
+        deleteAllNameAliases()
 
-        insertModalitiesRaw(backup.modalities)
-        insertBetsRaw(backup.bets)
-        insertGames(backup.games) // Usa a função de inserir jogos que já tinhas
-        insertLogsRaw(backup.logs)
+        val modalities = (backup.modalities ?: emptyList()).toMutableList()
+        val bets = backup.bets ?: emptyList()
+        val rawGames = backup.games ?: emptyList()
+        val logs = backup.logs ?: emptyList()
+        val aliases = backup.aliases ?: emptyList()
+
+        // Garantir que todos os modalityIds usados nos jogos existem para evitar Foreign Key Constraint Failed
+        val existingModalityIds = modalities.map { it.id }.toMutableSet()
+        for (g in rawGames) {
+            if (g.modalityId !in existingModalityIds) {
+                modalities.add(ModalityEntity(id = g.modalityId, name = "Geral"))
+                existingModalityIds.add(g.modalityId)
+            }
+        }
+
+        if (modalities.isNotEmpty()) {
+            insertModalitiesRaw(modalities)
+        }
+
+        if (bets.isNotEmpty()) {
+            insertBetsRaw(bets)
+        }
+
+        val existingBetIds = bets.map { it.id }.toSet()
+        val validGames = if (existingBetIds.isNotEmpty()) {
+            rawGames.filter { it.betId in existingBetIds }
+        } else {
+            rawGames
+        }
+
+        if (validGames.isNotEmpty()) {
+            insertGames(validGames)
+        }
+
+        if (logs.isNotEmpty()) {
+            insertLogsRaw(logs)
+        }
+        if (aliases.isNotEmpty()) {
+            insertNameAliasesRaw(aliases)
+        }
     }
 
     @Transaction

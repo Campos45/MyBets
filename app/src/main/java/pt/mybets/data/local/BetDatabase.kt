@@ -6,8 +6,8 @@ import pt.mybets.data.local.dao.BetDatabaseDao
 import pt.mybets.data.local.entity.*
 
 @Database(
-    entities = [BetEntity::class, GameEntity::class, ModalityEntity::class, AppLogEntity::class],
-    version = 2,
+    entities = [BetEntity::class, GameEntity::class, ModalityEntity::class, AppLogEntity::class, NameAliasEntity::class],
+    version = 3,
     exportSchema = false
 )
 abstract class BetDatabase : RoomDatabase() {

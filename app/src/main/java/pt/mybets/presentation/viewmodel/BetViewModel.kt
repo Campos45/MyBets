@@ -19,12 +19,19 @@ import com.google.gson.Gson
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import pt.mybets.domain.model.BackupData
+import pt.mybets.data.local.entity.NameAliasEntity
+import pt.mybets.presentation.util.normalizeKey
 
 import android.widget.Toast
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-
+// Estado para copiar aposta
+data class BetDraft(
+    val stake: String = "",
+    val isFreeBet: Boolean = false,
+    val games: List<GameInputState> = emptyList()
+)
 
 // Estado para a UI preencher
 data class GameInputState(
@@ -90,19 +97,73 @@ class BetViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
 
+    val nameAliases: StateFlow<List<NameAliasEntity>> = repository.getAllNameAliases()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _copiedBetDraft = MutableStateFlow<BetDraft?>(null)
+    val copiedBetDraft: StateFlow<BetDraft?> = _copiedBetDraft.asStateFlow()
+
+    fun copyBet(bwg: BetWithGames, modalityMap: Map<Int, String>) {
+        val draftGames = bwg.games.map { g ->
+            val parts = g.teams.split(" vs ")
+            val home = parts.getOrNull(0)?.trim() ?: ""
+            val away = parts.getOrNull(1)?.trim() ?: ""
+            GameInputState(
+                id = UUID.randomUUID().toString(),
+                homeTeam = home,
+                awayTeam = away,
+                competition = g.competition,
+                modalityName = modalityMap[g.modalityId] ?: "",
+                odd = if (g.odd > 0) g.odd.toString() else "",
+                isLive = g.isLive
+            )
+        }
+        _copiedBetDraft.value = BetDraft(
+            stake = if (bwg.bet.stake > 0) bwg.bet.stake.toString() else "",
+            isFreeBet = bwg.bet.isFreeBet,
+            games = if (draftGames.isNotEmpty()) draftGames else listOf(GameInputState())
+        )
+    }
+
+    fun clearCopiedBetDraft() {
+        _copiedBetDraft.value = null
+    }
+
+    // REQUISITO 2: Sugestão inteligente de competições priorizando competições já associadas às equipas
+    fun getCompetitionsForTeams(homeTeam: String, awayTeam: String): List<String> {
+        val allComps = competitionSuggestions.value
+        val homeKey = homeTeam.normalizeKey()
+        val awayKey = awayTeam.normalizeKey()
+        if (homeKey.isEmpty() && awayKey.isEmpty()) {
+            return allComps
+        }
+        val currentBets = uiState.value.bets
+        val associated = mutableSetOf<String>()
+        currentBets.forEach { bwg ->
+            bwg.games.forEach { g ->
+                val teamsKey = g.teams.normalizeKey()
+                val matchHome = homeKey.isNotEmpty() && teamsKey.contains(homeKey)
+                val matchAway = awayKey.isNotEmpty() && teamsKey.contains(awayKey)
+                if ((matchHome || matchAway) && g.competition.isNotBlank()) {
+                    associated.add(g.competition.trim())
+                }
+            }
+        }
+        return (associated.toList().sorted() + allComps).distinct()
+    }
+
     fun markAllGamesAsWon(betWithGames: BetWithGames) {
         viewModelScope.launch {
             betWithGames.games.forEach { game ->
                 repository.updateGame(game.copy(result = ResultState.WON))
             }
-            // Atualiza a aposta global como ganha
             repository.updateBetStatus(
                 betWithGames.bet.copy(globalResult = ResultState.WON, isFinished = true)
             )
         }
     }
 
-    // Função para atualizar o resultado de um jogo específico
+    // REQUISITO 1: A aposta SÓ passa a concluída quando TODOS os jogos tiverem estado final (sem pendentes)
     fun updateGameResult(betWithGames: BetWithGames, game: GameEntity, clickedResult: ResultState) {
         viewModelScope.launch {
             val newResult = if (game.result == clickedResult) ResultState.PENDING else clickedResult
@@ -114,15 +175,14 @@ class BetViewModel(
             val hasLost = allGames.any { it.result == ResultState.LOST }
             val hasPending = allGames.any { it.result == ResultState.PENDING }
 
-            // LÓGICA CORRIGIDA PARA O JOGO ADIADO
-            val newBetResult = when {
-                hasLost -> ResultState.LOST
-                !hasPending -> ResultState.WON // Se não há perdas nem pendentes (tudo WON ou VOID), a aposta é ganha!
-                else -> ResultState.PENDING
+            // Só passa para 'concluído' se NENHUM jogo estiver pendente
+            val isFinished = !hasPending
+            val newBetResult = if (isFinished) {
+                if (hasLost) ResultState.LOST else ResultState.WON
+            } else {
+                ResultState.PENDING
             }
 
-            // A aposta também passa a não estar concluída se newBetResult for PENDING
-            val isFinished = newBetResult != ResultState.PENDING
             repository.updateBetStatus(
                 betWithGames.bet.copy(
                     globalResult = newBetResult,
@@ -138,33 +198,73 @@ class BetViewModel(
         }
     }
 
+    // REQUISITO 4: Resolução de nomes canónicos e aliases (case & acentos insensitive)
+    private fun resolveCanonicalName(
+        category: String,
+        input: String,
+        existingNames: List<String>,
+        aliases: List<NameAliasEntity>
+    ): String {
+        val trimmed = input.trim()
+        if (trimmed.isEmpty()) return ""
+        val key = trimmed.normalizeKey()
+
+        // 1. Procurar em aliases guardados (ex: "cíty" -> alias ou combinação)
+        val aliasMatch = aliases.find { it.category == category && it.alias.normalizeKey() == key }
+        if (aliasMatch != null) {
+            return aliasMatch.canonicalName
+        }
+
+        // 2. Procurar em nomes existentes na BD (insensível a acentos e maiúsculas/minúsculas)
+        val existingMatch = existingNames.find { it.normalizeKey() == key }
+        if (existingMatch != null) {
+            return existingMatch
+        }
+
+        // 3. Se não existe, mantém a primeira versão guardada
+        return trimmed
+    }
+
     fun saveBet(stake: Double, isFreeBet: Boolean, gameInputs: List<GameInputState>) {
         viewModelScope.launch {
             val bet = BetEntity(stake = stake, isFreeBet = isFreeBet)
 
-            // Vai buscar as modalidades atuais (para não criar duplicados)
             val currentModalities = repository.getAllModalities().first().toMutableList()
+            val existingCompetitions = repository.getAllUniqueCompetitions().first()
+            val existingTeams = repository.getAllUniqueTeams().first().flatMap { combinedStr ->
+                combinedStr.split(" vs ").mapNotNull { if (it.isNotBlank()) it.trim() else null }
+            }.distinct()
+            val currentAliases = repository.getAllNameAliases().first()
 
             val gameEntities = gameInputs.map { input ->
-                val modName = input.modalityName.trim()
+                // 1. Resolver equipas
+                val homeResolved = resolveCanonicalName("TEAM", input.homeTeam, existingTeams, currentAliases)
+                val awayResolved = resolveCanonicalName("TEAM", input.awayTeam, existingTeams, currentAliases)
 
-                // 1. Procura se a modalidade já existe (ignorando maiúsculas/minúsculas)
-                var modality = currentModalities.find { it.name.equals(modName, ignoreCase = true) }
+                // 2. Resolver competição
+                val compResolved = resolveCanonicalName("COMPETITION", input.competition, existingCompetitions, currentAliases)
 
-                // 2. Se não existir, insere agora e guarda na lista local (caso o próximo jogo da mesma aposta use a mesma)
+                // 3. Resolver modalidade
+                val rawMod = resolveCanonicalName("MODALITY", input.modalityName, currentModalities.map { it.name }, currentAliases)
+                val modKey = rawMod.normalizeKey()
+
+                var modality = currentModalities.find { it.name.normalizeKey() == modKey }
                 val modalityId = if (modality != null) {
                     modality.id
                 } else {
-                    val newId = repository.insertModality(ModalityEntity(name = modName)).toInt()
-                    currentModalities.add(ModalityEntity(id = newId, name = modName))
+                    var newId = repository.insertModality(ModalityEntity(name = rawMod.trim())).toInt()
+                    if (newId <= 0) {
+                        val refreshed = repository.getAllModalities().first()
+                        newId = refreshed.find { it.name.normalizeKey() == modKey }?.id ?: 1
+                    }
+                    currentModalities.add(ModalityEntity(id = newId, name = rawMod.trim()))
                     newId
                 }
 
-                // 3. Junta a equipa da casa e visitante num só texto para a Base de Dados
                 GameEntity(
                     betId = 0,
-                    teams = "${input.homeTeam.trim()} vs ${input.awayTeam.trim()}",
-                    competition = input.competition.trim(),
+                    teams = "${homeResolved.trim()} vs ${awayResolved.trim()}",
+                    competition = compResolved.trim(),
                     modalityId = modalityId,
                     odd = input.odd.toDoubleOrNull() ?: 1.0,
                     isLive = input.isLive
@@ -172,6 +272,49 @@ class BetViewModel(
             }
 
             repository.insertBetWithGames(bet, gameEntities)
+        }
+    }
+
+    // REQUISITO 5: Funções de Edição e Combinação de Dados
+    fun renameTeam(oldName: String, newName: String) {
+        viewModelScope.launch {
+            repository.renameTeam(oldName, newName)
+        }
+    }
+
+    fun mergeTeams(sourceTeam: String, targetTeam: String) {
+        viewModelScope.launch {
+            repository.mergeTeams(sourceTeam, targetTeam)
+        }
+    }
+
+    fun renameCompetition(oldName: String, newName: String) {
+        viewModelScope.launch {
+            repository.renameCompetition(oldName, newName)
+        }
+    }
+
+    fun mergeCompetitions(sourceComp: String, targetComp: String) {
+        viewModelScope.launch {
+            repository.mergeCompetitions(sourceComp, targetComp)
+        }
+    }
+
+    fun renameModality(id: Int, newName: String) {
+        viewModelScope.launch {
+            repository.renameModality(id, newName)
+        }
+    }
+
+    fun mergeModalities(sourceId: Int, targetId: Int, sourceName: String, targetName: String) {
+        viewModelScope.launch {
+            repository.mergeModalities(sourceId, targetId, sourceName, targetName)
+        }
+    }
+
+    fun deleteAlias(id: Int) {
+        viewModelScope.launch {
+            repository.deleteNameAlias(id)
         }
     }
 
@@ -201,9 +344,13 @@ class BetViewModel(
                 val ret = b.stake * odd
                 if (b.isFreeBet) freeBetProfit += ret
                 totalProfit += ret
+            } else if (b.globalResult == ResultState.VOID) {
+                // Devolve a stake caso a aposta seja anulada (VOID)
+                if (!b.isFreeBet) totalProfit += b.stake
             }
         }
-        val rate = if (finishedCount > 0) (wonCount.toDouble() / finishedCount) * 100 else 0.0
+        val rawRate = if (finishedCount > 0) (wonCount.toDouble() / finishedCount) * 100 else 0.0
+        val rate = if (rawRate.isNaN() || rawRate.isInfinite()) 0.0 else rawRate
         return BetStatsState(totalProfit, totalInvested, freeBetProfit, rate)
     }
 
@@ -223,25 +370,31 @@ private data class GameOddDetail(
 
         val compStats = allFinishedGames.groupBy { it.competition }.map { (comp, games) ->
             val wins = games.count { it.result == ResultState.WON }
-            CompetitionStat(comp, (wins.toDouble() / games.size) * 100, games.size)
+            val rawRate = (wins.toDouble() / games.size) * 100
+            val winRate = if (rawRate.isNaN() || rawRate.isInfinite()) 0.0 else rawRate
+            CompetitionStat(comp, winRate, games.size)
         }.sortedByDescending { it.total }
 
         val modalityMap = modalities.associate { it.id to it.name }
         val modStats = allFinishedGames.groupBy { it.modalityId }.map { (modId, games) ->
             val modName = modalityMap[modId] ?: "Desconhecida"
             val wins = games.count { it.result == ResultState.WON }
-            ModalityStat(modName, (wins.toDouble() / games.size) * 100, games.size)
+            val rawRate = (wins.toDouble() / games.size) * 100
+            val winRate = if (rawRate.isNaN() || rawRate.isInfinite()) 0.0 else rawRate
+            ModalityStat(modName, winRate, games.size)
         }.sortedByDescending { it.total }
 
         // Planificar todos os jogos finalizados com os detalhes de odd e aposta pai
+        // Prevenção de duplicação: aposta múltipla reparte a stake pelos seus jogos no cálculo por faixa de odd
         val finishedGamesWithDetails = finishedBets.flatMap { bwg ->
+            val gamesCount = bwg.games.size.coerceAtLeast(1)
             bwg.games.map { g ->
                 val gameOdd = if (g.result == ResultState.VOID) 1.0 else g.odd
                 val isWon = g.result == ResultState.WON
                 GameOddDetail(
                     game = g,
                     odd = gameOdd,
-                    stake = bwg.bet.stake,
+                    stake = bwg.bet.stake / gamesCount,
                     isFreeBet = bwg.bet.isFreeBet,
                     isWon = isWon
                 )
@@ -268,7 +421,8 @@ private data class GameOddDetail(
                 }
             }
 
-            val roi = if (totalStake > 0) ((totalReturn - totalStake) / totalStake) * 100 else 0.0
+            val rawRoi = if (totalStake > 0) ((totalReturn - totalStake) / totalStake) * 100 else 0.0
+            val roi = if (rawRoi.isNaN() || rawRoi.isInfinite()) 0.0 else rawRoi
             OddRangeStat(range, roi, filtered.size)
         }
 
@@ -529,6 +683,7 @@ private data class GameOddDetail(
 
     fun importDatabase(context: Context, uri: Uri) {
         viewModelScope.launch {
+            var errorDetail: String? = null
             val success = withContext(Dispatchers.IO) {
                 try {
                     context.contentResolver.openInputStream(uri)?.use { inputStream ->
@@ -538,19 +693,24 @@ private data class GameOddDetail(
                                 repository.restoreBackupData(backup)
                                 true
                             } else {
+                                errorDetail = "Ficheiro vazio ou formato inválido."
                                 false
                             }
                         }
-                    } ?: false
+                    } ?: run {
+                        errorDetail = "Não foi possível abrir o ficheiro."
+                        false
+                    }
                 } catch (e: Exception) {
                     e.printStackTrace()
+                    errorDetail = e.localizedMessage ?: e.javaClass.simpleName
                     false
                 }
             }
             if (success) {
                 Toast.makeText(context, "Backup importado com sucesso!", Toast.LENGTH_LONG).show()
             } else {
-                Toast.makeText(context, "Ficheiro inválido ou corrompido.", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "Erro ao importar: ${errorDetail ?: "Ficheiro inválido"}", Toast.LENGTH_LONG).show()
             }
         }
     }

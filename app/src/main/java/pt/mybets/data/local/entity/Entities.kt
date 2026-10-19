@@ -51,3 +51,16 @@ data class AppLogEntity(
     val action: String, // Ex: "INSERT_BET", "DELETE_GAME"
     val timestamp: Long = System.currentTimeMillis()
 )
+
+@Entity(
+    tableName = "name_aliases",
+    indices = [
+        Index(value = ["category", "alias"], unique = true)
+    ]
+)
+data class NameAliasEntity(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val category: String, // "TEAM", "COMPETITION", "MODALITY"
+    val alias: String,
+    val canonicalName: String
+)

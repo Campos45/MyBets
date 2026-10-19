@@ -15,6 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import pt.mybets.presentation.viewmodel.MainUiState
 import pt.mybets.presentation.viewmodel.InsightType
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,7 +69,7 @@ fun StatsScreen(
                                             ) {
                                                 Text("Odd ${stat.range}", Modifier.weight(1f), fontWeight = FontWeight.Medium)
                                                 Text(
-                                                    "${String.format("%.1f", stat.roi)}%",
+                                                    "${String.format(Locale.getDefault(), "%.1f", stat.roi)}%",
                                                     color = if (stat.roi >= 0) Color(0xFF2E7D32) else Color(0xFFC62828),
                                                     fontWeight = FontWeight.Bold
                                                 )
@@ -191,7 +192,7 @@ fun StatRow(name: String, rate: Double, total: Int) {
                 )
             }
             Column(horizontalAlignment = Alignment.End) {
-                Text("${String.format("%.1f", rate)}%", fontWeight = FontWeight.Black, color = if (rate >= 50) Color(0xFF00E676) else Color(0xFFFFA000))
+                Text("${String.format(Locale.getDefault(), "%.1f", rate)}%", fontWeight = FontWeight.Black, color = if (rate >= 50) Color(0xFF00E676) else Color(0xFFFFA000))
                 Text("$total apostas", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
             }
         }

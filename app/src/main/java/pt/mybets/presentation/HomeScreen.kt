@@ -37,6 +37,7 @@ import java.util.Locale
 fun HomeScreen(
     uiState: MainUiState,
     onNavigateToAddBet: () -> Unit,
+    onNavigateToManageData: () -> Unit = {},
     onExportBackup: (android.net.Uri) -> Unit = {},
     onImportBackup: (android.net.Uri) -> Unit = {}
 ) {
@@ -47,7 +48,7 @@ fun HomeScreen(
     ) { uri -> uri?.let { onExportBackup(it) } }
 
     val importLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
+        contract = ActivityResultContracts.GetContent()
     ) { uri -> uri?.let { onImportBackup(it) } }
 
     Scaffold(
@@ -63,6 +64,14 @@ fun HomeScreen(
                             onDismissRequest = { menuExpanded = false }
                         ) {
                             DropdownMenuItem(
+                                text = { Text("Gerir Equipas e Mercados") },
+                                onClick = {
+                                    menuExpanded = false
+                                    onNavigateToManageData()
+                                }
+                            )
+                            HorizontalDivider()
+                            DropdownMenuItem(
                                 text = { Text("Exportar Backup (JSON)") },
                                 onClick = {
                                     menuExpanded = false
@@ -73,7 +82,7 @@ fun HomeScreen(
                                 text = { Text("Importar Backup (JSON)") },
                                 onClick = {
                                     menuExpanded = false
-                                    importLauncher.launch(arrayOf("application/json"))
+                                    importLauncher.launch("*/*")
                                 }
                             )
                         }
@@ -207,6 +216,8 @@ fun ProfitLineChart(bets: List<BetWithGames>) {
             if (bet.globalResult == ResultState.WON) {
                 val totalOdd = betWithGames.games.fold(1.0) { acc, g -> acc * (if (g.result == ResultState.VOID) 1.0 else g.odd) }
                 currentProfit += bet.stake * totalOdd
+            } else if (bet.globalResult == ResultState.VOID) {
+                if (!bet.isFreeBet) currentProfit += bet.stake
             }
             history.add(currentProfit)
         }

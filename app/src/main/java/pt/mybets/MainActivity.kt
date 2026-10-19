@@ -30,13 +30,27 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `name_aliases` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `category` TEXT NOT NULL,
+                        `alias` TEXT NOT NULL,
+                        `canonicalName` TEXT NOT NULL
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_name_aliases_category_alias` ON `name_aliases` (`category`, `alias`)")
+            }
+        }
+
         // 1. Instanciar a Base de Dados
         val database = Room.databaseBuilder(
             applicationContext,
             BetDatabase::class.java,
             "mybets_db"
         )
-        .addMigrations(MIGRATION_1_2)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
         .build()
 
         // 2. Instanciar o Repositório

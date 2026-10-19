@@ -23,13 +23,16 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+import androidx.compose.material.icons.filled.Share
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BetsScreen(
     uiState: MainUiState,
     onUpdateGameResult: (BetWithGames, GameEntity, ResultState) -> Unit,
     onMarkAllWon: (BetWithGames) -> Unit,
-    onDeleteBet: (BetWithGames) -> Unit
+    onDeleteBet: (BetWithGames) -> Unit,
+    onCopyBet: (BetWithGames, Map<Int, String>) -> Unit
 ) {
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     val tabs = listOf("Em Aberto", "Concluídas")
@@ -104,7 +107,8 @@ fun BetsScreen(
                             modalityMap = modalityMap,
                             onUpdateGameResult = onUpdateGameResult,
                             onMarkAllWon = onMarkAllWon,
-                            onDeleteBet = { betToDelete = bwg }
+                            onDeleteBet = { betToDelete = bwg },
+                            onCopyBet = onCopyBet
                         )
                     }
                 }
@@ -142,7 +146,8 @@ fun BetCard(
     modalityMap: Map<Int, String>,
     onUpdateGameResult: (BetWithGames, GameEntity, ResultState) -> Unit,
     onMarkAllWon: (BetWithGames) -> Unit,
-    onDeleteBet: (BetWithGames) -> Unit
+    onDeleteBet: (BetWithGames) -> Unit,
+    onCopyBet: (BetWithGames, Map<Int, String>) -> Unit
 ) {
     val totalOdd = bwg.games.fold(1.0) { acc, g ->
         acc * (if (g.result == ResultState.VOID) 1.0 else g.odd)
@@ -179,7 +184,12 @@ fun BetCard(
                     )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Odd total: ${String.format(Locale.getDefault(), "%.2f", totalOdd)}", Modifier.padding(end = 8.dp))
+                    Text("Odd: ${String.format(Locale.getDefault(), "%.2f", totalOdd)}", Modifier.padding(end = 4.dp), style = MaterialTheme.typography.bodySmall)
+
+                    // REQUISITO 6: Botão para copiar/clonar aposta
+                    IconButton(onClick = { onCopyBet(bwg, modalityMap) }) {
+                        Icon(Icons.Default.Share, "Copiar Aposta", tint = Color(0xFF2196F3))
+                    }
 
                     if (!bwg.bet.isFinished) {
                         IconButton(onClick = { onMarkAllWon(bwg) }) {

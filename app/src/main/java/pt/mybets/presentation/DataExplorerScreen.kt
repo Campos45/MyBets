@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,13 +19,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import pt.mybets.data.local.entity.GameEntity
 import pt.mybets.domain.model.ResultState
+import pt.mybets.presentation.util.normalizeKey
 import pt.mybets.presentation.viewmodel.BetViewModel
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DataExplorerScreen(
-    viewModel: BetViewModel
+    viewModel: BetViewModel,
+    onNavigateToManageData: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val teamSuggestions by viewModel.teamSuggestions.collectAsState()
@@ -59,9 +62,9 @@ fun DataExplorerScreen(
         allFinishedGamesWithBet, selectedCompetition, selectedModality, selectedLiveMode, modalityMap
     ) {
         val filtered = allFinishedGamesWithBet.filter { (game, bet) ->
-            val compMatch = if (selectedCompetition == "Todas") true else game.competition.equals(selectedCompetition, ignoreCase = true)
+            val compMatch = if (selectedCompetition == "Todas") true else game.competition.normalizeKey() == selectedCompetition.normalizeKey()
             val modName = modalityMap[game.modalityId] ?: "Desconhecida"
-            val modMatch = if (selectedModality == "Todas") true else modName.equals(selectedModality, ignoreCase = true)
+            val modMatch = if (selectedModality == "Todas") true else modName.normalizeKey() == selectedModality.normalizeKey()
             val liveMatch = when (selectedLiveMode) {
                 "Live" -> game.isLive
                 "Pré-Jogo" -> !game.isLive
@@ -79,9 +82,9 @@ fun DataExplorerScreen(
         allFinishedGamesWithBet, selectedTeam, selectedModality, selectedLiveMode, modalityMap
     ) {
         val filtered = allFinishedGamesWithBet.filter { (game, bet) ->
-            val teamMatch = if (selectedTeam == "Todas") true else game.teams.split(" vs ").any { it.trim().equals(selectedTeam, ignoreCase = true) }
+            val teamMatch = if (selectedTeam == "Todas") true else game.teams.split(" vs ").any { it.trim().normalizeKey() == selectedTeam.normalizeKey() }
             val modName = modalityMap[game.modalityId] ?: "Desconhecida"
-            val modMatch = if (selectedModality == "Todas") true else modName.equals(selectedModality, ignoreCase = true)
+            val modMatch = if (selectedModality == "Todas") true else modName.normalizeKey() == selectedModality.normalizeKey()
             val liveMatch = when (selectedLiveMode) {
                 "Live" -> game.isLive
                 "Pré-Jogo" -> !game.isLive
@@ -99,8 +102,8 @@ fun DataExplorerScreen(
         allFinishedGamesWithBet, selectedTeam, selectedCompetition, selectedLiveMode, modalityMap
     ) {
         val filtered = allFinishedGamesWithBet.filter { (game, bet) ->
-            val teamMatch = if (selectedTeam == "Todas") true else game.teams.split(" vs ").any { it.trim().equals(selectedTeam, ignoreCase = true) }
-            val compMatch = if (selectedCompetition == "Todas") true else game.competition.equals(selectedCompetition, ignoreCase = true)
+            val teamMatch = if (selectedTeam == "Todas") true else game.teams.split(" vs ").any { it.trim().normalizeKey() == selectedTeam.normalizeKey() }
+            val compMatch = if (selectedCompetition == "Todas") true else game.competition.normalizeKey() == selectedCompetition.normalizeKey()
             val liveMatch = when (selectedLiveMode) {
                 "Live" -> game.isLive
                 "Pré-Jogo" -> !game.isLive
@@ -118,10 +121,10 @@ fun DataExplorerScreen(
         allFinishedGamesWithBet, selectedTeam, selectedCompetition, selectedModality, modalityMap
     ) {
         val filtered = allFinishedGamesWithBet.filter { (game, bet) ->
-            val teamMatch = if (selectedTeam == "Todas") true else game.teams.split(" vs ").any { it.trim().equals(selectedTeam, ignoreCase = true) }
-            val compMatch = if (selectedCompetition == "Todas") true else game.competition.equals(selectedCompetition, ignoreCase = true)
+            val teamMatch = if (selectedTeam == "Todas") true else game.teams.split(" vs ").any { it.trim().normalizeKey() == selectedTeam.normalizeKey() }
+            val compMatch = if (selectedCompetition == "Todas") true else game.competition.normalizeKey() == selectedCompetition.normalizeKey()
             val modName = modalityMap[game.modalityId] ?: "Desconhecida"
-            val modMatch = if (selectedModality == "Todas") true else modName.equals(selectedModality, ignoreCase = true)
+            val modMatch = if (selectedModality == "Todas") true else modName.normalizeKey() == selectedModality.normalizeKey()
             teamMatch && compMatch && modMatch
         }
         val hasLive = filtered.any { it.first.isLive }
@@ -142,14 +145,14 @@ fun DataExplorerScreen(
             val teamMatch = if (selectedTeam == "Todas") {
                 true
             } else {
-                game.teams.split(" vs ").any { it.trim().equals(selectedTeam, ignoreCase = true) }
+                game.teams.split(" vs ").any { it.trim().normalizeKey() == selectedTeam.normalizeKey() }
             }
 
             // Filtro Competição
             val compMatch = if (selectedCompetition == "Todas") {
                 true
             } else {
-                game.competition.equals(selectedCompetition, ignoreCase = true)
+                game.competition.normalizeKey() == selectedCompetition.normalizeKey()
             }
 
             // Filtro Mercado
@@ -157,7 +160,7 @@ fun DataExplorerScreen(
             val modMatch = if (selectedModality == "Todas") {
                 true
             } else {
-                modName.equals(selectedModality, ignoreCase = true)
+                modName.normalizeKey() == selectedModality.normalizeKey()
             }
 
             // Filtro Live/Pre-match
@@ -183,23 +186,34 @@ fun DataExplorerScreen(
             val bwg = uiState.bets.find { it.bet.id == bet.id }
             val odd = bwg?.games?.fold(1.0) { acc, g -> acc * (if (g.result == ResultState.VOID) 1.0 else g.odd) } ?: 1.0
             bet.stake * odd
+        } else if (bet.globalResult == ResultState.VOID) {
+            if (!bet.isFreeBet) bet.stake else 0.0
         } else {
             0.0
         }
     }
     val profit = totalReturn - totalInvested
-    val roi = if (totalInvested > 0) (profit / totalInvested) * 100 else 0.0
+    val rawRoi = if (totalInvested > 0) (profit / totalInvested) * 100 else 0.0
+    val roi = if (rawRoi.isNaN() || rawRoi.isInfinite()) 0.0 else rawRoi
 
     val wonCount = matchedGames.count { it.first.result == ResultState.WON }
     val lostCount = matchedGames.count { it.first.result == ResultState.LOST }
     val voidCount = matchedGames.count { it.first.result == ResultState.VOID }
     val totalCount = matchedGames.size
 
-    val winRate = if (totalCount > 0) (wonCount.toDouble() / totalCount) * 100 else 0.0
+    val rawWinRate = if (totalCount > 0) (wonCount.toDouble() / totalCount) * 100 else 0.0
+    val winRate = if (rawWinRate.isNaN() || rawWinRate.isInfinite()) 0.0 else rawWinRate
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Explorador de Dados") })
+            TopAppBar(
+                title = { Text("Explorador de Dados") },
+                actions = {
+                    IconButton(onClick = onNavigateToManageData) {
+                        Icon(Icons.Default.Edit, contentDescription = "Gerir Nomes")
+                    }
+                }
+            )
         }
     ) { padding ->
         Column(

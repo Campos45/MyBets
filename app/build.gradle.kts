@@ -16,8 +16,8 @@ android {
         applicationId = "pt.mybets"
         minSdk = 33
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 7
+        versionName = "1.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -71,8 +71,8 @@ dependencies {
 
     implementation("com.google.android.material:material:1.11.0")
 
-    // Google ML Kit Text Recognition
-    implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.1")
+    // Google ML Kit Text Recognition (Bundled / Offline Model)
+    implementation("com.google.mlkit:text-recognition:16.0.1")
 
     // Testes
     testImplementation(libs.junit)
